@@ -28,20 +28,32 @@ function setProxy(url) {
  */
 
 function getHeaders(url, options, ctx, customHeader) {
+    // Browser fingerprint defaults are sourced from the same module the headless
+    // Chromium fallback uses, so the FCA HTTP layer and the headless browser
+    // present an identical "Chrome 138 on Windows" identity to Facebook. Mixing
+    // UAs across the two transports is a known trigger for session lockouts.
+    var BR;
+    try { BR = require('./Extra/fetchFbDtsgBrowser'); } catch (e) { BR = {}; }
+    var DEFAULT_UA = BR.DEFAULT_UA || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
+    var SEC_CH_UA = BR.DEFAULT_SEC_CH_UA || "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Google Chrome\";v=\"138\"";
+    var SEC_CH_UA_MOBILE = BR.DEFAULT_SEC_CH_UA_MOBILE || "?0";
+    var SEC_CH_UA_PLATFORM = BR.DEFAULT_SEC_CH_UA_PLATFORM || "\"Windows\"";
+    var ACCEPT_LANG = BR.DEFAULT_ACCEPT_LANGUAGE || "en-US,en;q=0.9,bn;q=0.8";
+
     var headers = {
         "Content-Type": "application/x-www-form-urlencoded",
         Referer: "https://www.facebook.com/",
         Host: url.replace("https://", "").split("/")[0],
         Origin: "https://www.facebook.com",
-        "user-agent": (options.userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36"),
+        "user-agent": (options.userAgent || DEFAULT_UA),
         Connection: "keep-alive",
         "sec-fetch-site": 'same-origin',
         "sec-fetch-mode": 'cors',
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-        "accept-language": "en-US,en;q=0.9",
-        "sec-ch-ua": "\"Chromium\";v=\"112\", \"Microsoft Edge\";v=\"112\", \"Not:A-Brand\";v=\"99\"",
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": "\"Windows\""
+        "accept-language": ACCEPT_LANG,
+        "sec-ch-ua": SEC_CH_UA,
+        "sec-ch-ua-mobile": SEC_CH_UA_MOBILE,
+        "sec-ch-ua-platform": SEC_CH_UA_PLATFORM
     };
     if (customHeader) Object.assign(headers, customHeader);
     if (ctx && ctx.region) headers["X-MSGR-Region"] = ctx.region;

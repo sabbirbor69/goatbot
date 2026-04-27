@@ -220,7 +220,7 @@ function setOptions(globalOptions, options) {
                         break;
                     }
                     case 'userAgent': {
-                        globalOptions.userAgent = (options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
+                        globalOptions.userAgent = (options.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36');
                         break;
                     }
                     case 'proxy': {
@@ -1220,7 +1220,7 @@ try {
                         let Regex_Via = /MPageLoadClientMetrics/gs; //default for normal account, can easily get region, without this u can't get region in some case but u can run normal
                         if (!Regex_Via.test(res.body)) {
                             //www.facebook.com
-                            globalOptions.userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.2849.68";
+                            globalOptions.userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
                             return utils.get('https://www.facebook.com/', jar, null, globalOptions, { noRef: true })
                         }
                         else return res
@@ -1439,7 +1439,7 @@ function login(loginData, options, callback) {
         logRecordSize: 100,
         online: false,
         emitReady: false,
-        userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/603.3.8 (KHTML, like Gecko) Version/10.1.2 Safari/603.3.8"
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
     };
     
     var prCallback = null;
@@ -1461,7 +1461,7 @@ function login(loginData, options, callback) {
         setOptions(globalOptions, {
             logLevel: "silent",
             forceLogin: true,
-            userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36"
+            userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
         });
         loginHelper(loginData.appState, loginData.email, loginData.password, globalOptions, callback, prCallback);
     }

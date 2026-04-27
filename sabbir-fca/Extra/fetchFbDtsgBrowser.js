@@ -25,6 +25,19 @@ function getPuppeteer() {
     return _puppeteer;
 }
 
+/**
+ * Default browser fingerprint shared by both the headless browser and the
+ * FCA HTTP layer. Keeping these in one place is important: Facebook's anti-
+ * automation pipeline correlates the User-Agent + sec-ch-ua client hints +
+ * Accept-Language across requests. If the browser launches as Chrome 138 but
+ * the FCA HTTP requests claim to be Chrome 103, the session is flagged.
+ */
+const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36';
+const DEFAULT_SEC_CH_UA = '"Not)A;Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"';
+const DEFAULT_SEC_CH_UA_MOBILE = '?0';
+const DEFAULT_SEC_CH_UA_PLATFORM = '"Windows"';
+const DEFAULT_ACCEPT_LANGUAGE = 'en-US,en;q=0.9,bn;q=0.8';
+
 function resolveChromiumExecutable() {
     if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
         return process.env.PUPPETEER_EXECUTABLE_PATH;
@@ -86,32 +99,49 @@ async function fetchFbDtsgViaBrowser(appstate, opts = {}) {
     const puppeteer = getPuppeteer();
     let browser;
     try {
+        // NOTE: deliberately NOT passing --single-process / --no-zygote here.
+        // Those flags speed up cold-start but cause Chromium to silently drop
+        // some Set-Cookie writes from Facebook's response, which makes the
+        // post-navigation cookie diff useless.
         browser = await puppeteer.launch({
-            headless: true,
+            headless: 'new',
             executablePath: exe,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-gpu',
-                '--no-zygote',
-                '--single-process',
                 '--disable-blink-features=AutomationControlled',
+                '--disable-features=IsolateOrigins,site-per-process,AutomationControlled',
+                '--lang=en-US,en',
+                '--window-size=1280,800',
             ],
         });
 
         const page = await browser.newPage();
-        await page.setUserAgent(opts.userAgent ||
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-        await page.setViewport({ width: 1280, height: 800 });
+        const ua = opts.userAgent || DEFAULT_UA;
+        await page.setUserAgent(ua);
+        await page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 1 });
+        await page.setExtraHTTPHeaders({
+            'Accept-Language': DEFAULT_ACCEPT_LANGUAGE,
+            'sec-ch-ua': DEFAULT_SEC_CH_UA,
+            'sec-ch-ua-mobile': DEFAULT_SEC_CH_UA_MOBILE,
+            'sec-ch-ua-platform': DEFAULT_SEC_CH_UA_PLATFORM,
+            'Upgrade-Insecure-Requests': '1',
+        });
 
-        // Lightweight stealth: mask the most common automation fingerprints before
-        // any page script runs. This matters because Facebook invalidates the
-        // session if it sees navigator.webdriver === true on first navigation.
+        // Stealth patches: mask the most common automation fingerprints before
+        // any page script runs. Facebook invalidates the session on first
+        // navigation if it sees navigator.webdriver === true, an empty plugins
+        // array, or a missing window.chrome object.
         await page.evaluateOnNewDocument(() => {
             try { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); } catch (e) {}
-            try { Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] }); } catch (e) {}
+            try { Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en', 'bn'] }); } catch (e) {}
             try { Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] }); } catch (e) {}
+            try { Object.defineProperty(navigator, 'platform', { get: () => 'Win32' }); } catch (e) {}
+            try { Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 }); } catch (e) {}
+            try { Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 }); } catch (e) {}
+            try { Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 }); } catch (e) {}
             try {
                 const orig = window.navigator.permissions && window.navigator.permissions.query;
                 if (orig) {
@@ -121,7 +151,21 @@ async function fetchFbDtsgViaBrowser(appstate, opts = {}) {
                             : orig(p);
                 }
             } catch (e) {}
-            try { window.chrome = window.chrome || { runtime: {} }; } catch (e) {}
+            try {
+                window.chrome = window.chrome || {};
+                window.chrome.runtime = window.chrome.runtime || {};
+                window.chrome.app = window.chrome.app || { isInstalled: false };
+            } catch (e) {}
+            // WebGL vendor / renderer spoof so the GPU fingerprint doesn't shout
+            // "headless".
+            try {
+                const getParameter = WebGLRenderingContext.prototype.getParameter;
+                WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                    if (parameter === 37445) return 'Intel Inc.';
+                    if (parameter === 37446) return 'Intel Iris OpenGL Engine';
+                    return getParameter.apply(this, arguments);
+                };
+            } catch (e) {}
         });
 
         const ckArr = appstateToPuppeteerCookies(appstate);
@@ -246,4 +290,12 @@ async function fetchFbDtsgViaBrowser(appstate, opts = {}) {
     }
 }
 
-module.exports = { fetchFbDtsgViaBrowser, resolveChromiumExecutable };
+module.exports = {
+    fetchFbDtsgViaBrowser,
+    resolveChromiumExecutable,
+    DEFAULT_UA,
+    DEFAULT_SEC_CH_UA,
+    DEFAULT_SEC_CH_UA_MOBILE,
+    DEFAULT_SEC_CH_UA_PLATFORM,
+    DEFAULT_ACCEPT_LANGUAGE,
+};
