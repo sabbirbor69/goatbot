@@ -1,12 +1,12 @@
 module.exports.config = {
     name: "install",
-    version: "2.1.0",
+    version: "2.5.0",
     role: 2,
     credits: "Ariful Islam Sabbir",
-    description: "Temporary cache-e command install koro (5 min TTL)",
+    description: "Temporary cache-e command install koro (Text reply ba File)",
     usePrefix: true,
     category: "Admin",
-    usages: "install (.js file attach koro)",
+    usages: "install (code text-e reply dao ba .js file pathao)",
     cooldowns: 5,
 };
 
@@ -14,7 +14,7 @@ const axios = require("axios");
 const fs = require("fs-extra");
 const path = require("path");
 
-const TTL_MS = 5 * 60 * 1000; // 5 minutes
+const TTL_MS = 5 * 60 * 1000; 
 const CACHE_DIR = path.join(process.cwd(), "tmp", "install_cache", "cmds");
 
 global.GoatBot = global.GoatBot || {};
@@ -46,7 +46,6 @@ function cleanupTempInstall(name) {
             if (global.GoatBot.aliases.get(al) === name) global.GoatBot.aliases.delete(al);
         }
     }
-
     try {
         if (entry.filePath && fs.existsSync(entry.filePath)) {
             delete require.cache[require.resolve(entry.filePath)];
@@ -56,12 +55,10 @@ function cleanupTempInstall(name) {
 }
 
 async function performInstall(name, sourceCode, type, filename, api, threadID, messageID) {
-    const dir = type === "event" ? path.join(process.cwd(), "tmp", "install_cache", "events") : CACHE_DIR;
+    const dir = path.join(process.cwd(), "tmp", "install_cache", "cmds");
     fs.ensureDirSync(dir);
 
-    if (global.GoatBot.tempInstalls.has(name)) {
-        cleanupTempInstall(name);
-    }
+    if (global.GoatBot.tempInstalls.has(name)) cleanupTempInstall(name);
 
     const filePath = path.join(dir, `${name}.js`);
     fs.writeFileSync(filePath, sourceCode, "utf8");
@@ -72,100 +69,77 @@ async function performInstall(name, sourceCode, type, filename, api, threadID, m
         mod = require(filePath);
     } catch (err) {
         try { fs.removeSync(filePath); } catch (e) {}
-        const isSyntax = err && (err.name === "SyntaxError" || /SyntaxError|Unexpected/i.test(err.message || ""));
-        throw new Error(`${isSyntax ? "❌ Syntax Error" : "❌ Load Error"}\n${err.message}`);
+        throw new Error(`❌ Load Error: ${err.message}`);
     }
 
-    if (!mod || !mod.config || !mod.config.name || !mod.onStart) {
+    if (!mod.config || !mod.config.name || !mod.onStart) {
         try { fs.removeSync(filePath); } catch (e) {}
-        throw new Error("❌ Invalid format: 'config.name' ebong 'onStart' duto-i proyojon!");
+        throw new Error("❌ Invalid format: 'config.name' & 'onStart' proyojon!");
     }
 
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     mod.__tempInstallId = id;
     mod.location = filePath;
 
-    const aliases = Array.isArray(mod.config.aliases) ? mod.config.aliases.slice() : [];
-
     global.GoatBot.commands.set(name, mod);
-    for (const al of aliases) global.GoatBot.aliases.set(al, name);
-    if (mod.onChat && !global.GoatBot.onChat.includes(name)) global.GoatBot.onChat.push(name);
-    if (mod.onEvent && !global.GoatBot.onEvent.includes(name)) global.GoatBot.onEvent.push(name);
+    if (mod.config.aliases) {
+        for (const al of mod.config.aliases) global.GoatBot.aliases.set(al, name);
+    }
 
     const timeoutHandle = setTimeout(() => cleanupTempInstall(name), TTL_MS);
-    if (timeoutHandle.unref) timeoutHandle.unref();
-
     global.GoatBot.tempInstalls.set(name, {
         id, type: "cmd", filePath, timeoutHandle,
         expiresAt: Date.now() + TTL_MS,
-        aliases,
-        filename: filename || `${name}.js`,
+        aliases: mod.config.aliases || []
     });
 
-    const aliasNote = aliases.length ? `\n🔗 Aliases: ${aliases.join(", ")}` : "";
-    return api.sendMessage(
-        `✅ Installed (TEMP CACHE)\n📌 Command: ${global.GoatBot.config.prefix}${name}\n⏳ TTL: ${fmtMs(TTL_MS)} (auto-remove)${aliasNote}`,
-        threadID, messageID
-    );
+    return api.sendMessage(`✅ Installed: ${name}\n⏳ Expire hobe: ${fmtMs(TTL_MS)}`, threadID, messageID);
 }
 
 module.exports.onReply = async function ({ api, event, Reply }) {
     if (event.senderID !== Reply.author) return;
     if (event.body.toLowerCase() === "delet") {
-        const { name, sourceCode, fileName } = Reply;
-        if (global.GoatBot.commands.has(name)) {
-            global.GoatBot.commands.delete(name);
-        }
-        await performInstall(name, sourceCode, "cmd", fileName, api, event.threadID, event.messageID);
+        await performInstall(Reply.name, Reply.sourceCode, "cmd", `${Reply.name}.js`, api, event.threadID, event.messageID);
         api.unsendMessage(Reply.messageID);
     }
 };
 
 module.exports.onStart = async function ({ api, event, args }) {
     const { threadID, messageID, attachments, messageReply, senderID } = event;
+    let sourceCode = "";
+    let name = (args[0] || "").toLowerCase().replace(/.js$/i, "");
 
-    const requestedName = (args[0] || "").trim().toLowerCase().replace(/.js$/i, "");
-    const allAttachments = [...(attachments || []), ...((messageReply && messageReply.attachments) || [])];
-    
-    const jsFile = allAttachments.find(a => 
-        (a?.url) && (a.name?.toLowerCase().endsWith(".js") || a.filename?.toLowerCase().endsWith(".js"))
-    );
-
-    if (!jsFile) return api.sendMessage("❌ JS file paowa jay nai!", threadID, messageID);
-
-    const fileName = jsFile.name || jsFile.filename;
-    const name = (requestedName || fileName.replace(/.js$/i, "")).toLowerCase();
-
-    // Check if command already exists and it's NOT a temp install
-    if (global.GoatBot.commands.has(name) && !global.GoatBot.tempInstalls.has(name)) {
-        let sourceCode;
-        try {
-            const res = await axios.get(jsFile.url, { responseType: "arraybuffer" });
-            sourceCode = Buffer.from(res.data).toString("utf8");
-        } catch (e) { return api.sendMessage("❌ Download failed.", threadID); }
-
-        return api.sendMessage(
-            `⚠️ Ei file ti age theke ache (${name}.js)\n\nPurono file muche notun kore install korte chaile "delet" likhe reply din.`,
-            threadID,
-            (err, info) => {
-                global.GoatBot.onReply.set(info.messageID, {
-                    commandName: module.exports.config.name,
-                    messageID: info.messageID,
-                    author: senderID,
-                    name,
-                    sourceCode,
-                    fileName
-                });
-            },
-            messageID
+    // 1. Jodi text code-e reply deya hoy
+    if (messageReply && messageReply.body && !messageReply.attachments?.length) {
+        sourceCode = messageReply.body;
+    } 
+    // 2. Jodi file attachment-e reply deya hoy
+    else {
+        const jsFile = [...(attachments || []), ...(messageReply?.attachments || [])].find(a => 
+            a.name?.endsWith(".js") || a.filename?.endsWith(".js") || a.type === "file"
         );
+        
+        if (jsFile) {
+            try {
+                const res = await axios.get(jsFile.url, { responseType: "arraybuffer" });
+                sourceCode = Buffer.from(res.data).toString("utf8");
+                if (!name) name = (jsFile.name || jsFile.filename || "").replace(/.js$/i, "").toLowerCase();
+            } catch (e) { return api.sendMessage("❌ Download failed", threadID); }
+        }
+    }
+
+    if (!sourceCode) return api.sendMessage("❌ Code paowa jay nai! Code-er upor reply din ba file attach korun।", threadID, messageID);
+    if (!name) return api.sendMessage("❌ Command-er ekta nam din! Udahoron: /install test", threadID, messageID);
+
+    if (global.GoatBot.commands.has(name) && !global.GoatBot.tempInstalls.has(name)) {
+        return api.sendMessage(`⚠️ "${name}" nam-e permanent command ache। "delet" likhe reply din replace korte।`, threadID, (err, info) => {
+            global.GoatBot.onReply.set(info.messageID, { commandName: "install", messageID: info.messageID, author: senderID, name, sourceCode });
+        }, messageID);
     }
 
     try {
-        const res = await axios.get(jsFile.url, { responseType: "arraybuffer" });
-        const sourceCode = Buffer.from(res.data).toString("utf8");
-        await performInstall(name, sourceCode, "cmd", fileName, api, threadID, messageID);
+        await performInstall(name, sourceCode, "cmd", `${name}.js`, api, threadID, messageID);
     } catch (err) {
-        return api.sendMessage(err.message, threadID, messageID);
+        api.sendMessage(err.message, threadID, messageID);
     }
 };
