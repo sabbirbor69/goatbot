@@ -1,12 +1,29 @@
 const SABBIR = "Ariful Islam Sabbir";
 const axios = require("axios");
 
-const SABBIR_API = "https://sabbir-simisimi-api-71u6.onrender.com";
 const CYBERBOT_API = "https://simsimi.cyberbot.top";
+
+const FALLBACK_REPLIES = [
+  "হুমম...",
+  "বলো 🙂",
+  "আচ্ছা...",
+  "হ্যাঁ বলো",
+  "ঠিক আছে"
+];
+
+function getFallback() {
+  return FALLBACK_REPLIES[Math.floor(Math.random() * FALLBACK_REPLIES.length)];
+}
+
+async function getSimsimiReply(text) {
+  const res = await axios.get(`${CYBERBOT_API}/simsimi?text=${encodeURIComponent(text)}`, { timeout: 8000 });
+  const reply = res.data.text || res.data.response || res.data.answer || res.data.message;
+  return reply ? reply.trim() : null;
+}
 
 module.exports.config = {
   name: "autoreplybot",
-  version: "6.0.0",
+  version: "7.0.0",
   hasPermssion: 0,
   credits: "Ariful Islam Sabbir",
   hidden: true,
@@ -25,51 +42,43 @@ module.exports.onChat = async function ({ message, event, api }) {
 
   const msg = body.toLowerCase().trim();
 
-  // ১. নির্দিষ্ট কিওয়ার্ড চেক (এগুলো থাকলে সরাসরি উত্তর দিবে)
   const quickResponses = {
     "hi": "হেই",
     "hello": "বলো জান",
     "bby": "ki oise bby🥹",
-    "assalamualaikum": "Walaikumassalam"
+    "assalamualaikum": "Walaikumassalam",
+    "assalamu alaikum": "Walaikumassalam"
   };
-  
+
   if (quickResponses[msg]) return message.reply(quickResponses[msg]);
 
-  // ২. রিপ্লাই চেক: যদি কেউ বটের মেসেজে রিপ্লাই না দেয়, তবে বট চুপ থাকবে
-  // শুধুমাত্র নির্দিষ্ট কিওয়ার্ড ছাড়া অন্য সব কথার জন্য এই নিয়ম
-  if (type !== "message_reply" || messageReply.senderID !== botID) return;
+  if (type !== "message_reply" || !messageReply || messageReply.senderID !== botID) return;
 
   try {
-    const resCyber = await axios.get(`${CYBERBOT_API}/simsimi?text=${encodeURIComponent(body)}`);
-    let botReply = resCyber.data.text || resCyber.data.response;
+    let botReply = await getSimsimiReply(body);
 
-    if (botReply && !botReply.includes("I don't know")) {
-      const cleanReply = botReply.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
-      const finalMsg = cleanReply || "হুমম..."; 
-      
-      message.reply(finalMsg);
-
-      // ৩. অটো-সেভ (সাইলেন্টলি আপনার ০,১,২ ফরম্যাটে সেভ হবে)
-      if (finalMsg !== "হুমম...") {
-        const teachUrl = `${SABBIR_API}/teach?ask=${encodeURIComponent(body)}&ans=${encodeURIComponent(finalMsg)}`;
-        axios.get(teachUrl).catch(() => {});
-      }
+    if (!botReply || botReply.toLowerCase().includes("i don't know") || botReply.toLowerCase().includes("don't understand")) {
+      botReply = getFallback();
     }
+
+    const cleanReply = botReply.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
+
+    message.reply(cleanReply || getFallback());
+
   } catch (err) {
     console.log("Reply Error: " + err.message);
+    message.reply(getFallback());
   }
 };
 
 module.exports.onStart = async function ({ message, args }) {
-  // onStart সাধারণত কমান্ড দিলে কাজ করে, তাই এখানে আগের মতোই থাকলো
   const input = args.join(" ");
   if (!input) return message.reply("বলো...");
   try {
-    const res = await axios.get(`${CYBERBOT_API}/simsimi?text=${encodeURIComponent(input)}`);
-    let reply = res.data.text || res.data.response;
-    const cleanReply = reply.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
+    const reply = await getSimsimiReply(input);
+    const cleanReply = (reply || "").replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
     message.reply(cleanReply || "হুমম...");
   } catch (e) {
-    message.reply("সার্ভার ডাউন।");
+    message.reply("সার্ভার ডাউন, পরে চেষ্টা করো।");
   }
 };
