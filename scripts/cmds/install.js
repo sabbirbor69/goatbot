@@ -1,13 +1,13 @@
 module.exports.config = {
     name: "install",
-    version: "4.0.0",
+    version: "7.5.0",
     role: 2,
     credits: "Ariful Islam Sabbir",
-    description: "Advanced Temporary Installer (Handles Snippets)",
+    description: "Fake Animation সহ সরাসরি বা রিপ্লাই দিয়ে ইনস্টল করুন",
     usePrefix: true,
     category: "Admin",
-    usages: "install <name> (কোডের ওপর রিপ্লাই দিন)",
-    cooldowns: 5,
+    usages: "install <name> <code_here>",
+    cooldowns: 1, // Cooldown কমিয়ে ১ সেকেন্ড করা হয়েছে যাতে আটকে না যায়
 };
 
 const axios = require("axios");
@@ -41,7 +41,7 @@ function cleanupTempInstall(name) {
     } catch (e) {}
 }
 
-async function performInstall(name, sourceCode, api, threadID, messageID) {
+async function performInstallLogic(name, sourceCode) {
     fs.ensureDirSync(CACHE_DIR);
     if (global.GoatBot.tempInstalls.has(name)) cleanupTempInstall(name);
 
@@ -54,12 +54,12 @@ async function performInstall(name, sourceCode, api, threadID, messageID) {
         mod = require(filePath);
     } catch (err) {
         try { fs.removeSync(filePath); } catch (e) {}
-        throw new Error(`❌ কোডে ভুল আছে:\n${err.message}`);
+        throw new Error(err.message);
     }
 
     if (!mod.config || !mod.onStart) {
         try { fs.removeSync(filePath); } catch (e) {}
-        throw new Error("❌ ইনভ্যালিড ফরম্যাট! config এবং onStart নেই।");
+        throw new Error("Invalid Format! config বা onStart নেই।");
     }
 
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -69,15 +69,19 @@ async function performInstall(name, sourceCode, api, threadID, messageID) {
     
     const timeoutHandle = setTimeout(() => cleanupTempInstall(name), TTL_MS);
     global.GoatBot.tempInstalls.set(name, { id, filePath, timeoutHandle });
-
-    return api.sendMessage(`✅ সফলভাবে ইনস্টল হয়েছে!\n📌 নাম: ${name}\n⏳ স্থায়িত্ব: ${fmtMs(TTL_MS)}`, threadID, messageID);
+    return true;
 }
 
 module.exports.onReply = async function ({ api, event, Reply }) {
     if (event.senderID !== Reply.author) return;
     if (event.body.toLowerCase() === "delet") {
-        await performInstall(Reply.name, Reply.sourceCode, api, event.threadID, event.messageID);
-        api.unsendMessage(Reply.messageID);
+        try {
+            await performInstallLogic(Reply.name, Reply.sourceCode);
+            api.unsendMessage(Reply.messageID);
+            api.sendMessage(`✅ Updated Successfully: ${Reply.name}`, event.threadID);
+        } catch (e) {
+            api.sendMessage(`❌ এরর: ${e.message}`, event.threadID);
+        }
     }
 };
 
@@ -86,18 +90,12 @@ module.exports.onStart = async function ({ api, event, args }) {
     let sourceCode = "";
     let name = (args[0] || "").toLowerCase().replace(/.js$/i, "");
 
-    if (messageReply) {
-        // ১. রিপ্লাই করা মেসেজের বডি চেক
-        sourceCode = messageReply.body || "";
-        
-        // ২. যদি বডিতে কোড না থাকে (স্নিনিপেট সমস্যা), তবে আর্গুমেন্ট চেক করবে
-        if (sourceCode.length < 50 && messageReply.args) {
-            sourceCode = messageReply.args.join(" ");
-        }
-
-        // ৩. যদি ফাইল হয়
-        const file = [...(attachments || []), ...(messageReply.attachments || [])].find(a => a.type === "file" || a.name?.endsWith(".js"));
-        if (file && sourceCode.length < 50) {
+    if (args.length > 1) {
+        sourceCode = event.body.slice(event.body.indexOf(args[1]));
+    } else if (messageReply) {
+        sourceCode = messageReply.body || (messageReply.args ? messageReply.args.join(" ") : "");
+        const file = [...(attachments || []), ...(messageReply.attachments || [])].find(a => a.type === "file");
+        if (file && !sourceCode) {
             try {
                 const res = await axios.get(file.url, { responseType: "text" });
                 sourceCode = res.data;
@@ -105,21 +103,30 @@ module.exports.onStart = async function ({ api, event, args }) {
         }
     }
 
-    if (!sourceCode || sourceCode.length < 10) {
-        return api.sendMessage("❌ কোড পড়া সম্ভব হচ্ছে না! পুরো কোডটি টেক্সট হিসেবে লিখে তার ওপর রিপ্লাই দিন।", threadID, messageID);
-    }
-
-    if (!name) return api.sendMessage("❌ নাম দিন। যেমন: /install test", threadID, messageID);
+    if (!sourceCode || sourceCode.length < 10) return api.sendMessage("❌ কোড খুঁজে পাওয়া যায়নি!", threadID, messageID);
+    if (!name) return api.sendMessage("❌ নাম দিন: /install <name>", threadID, messageID);
 
     if (global.GoatBot.commands.has(name) && !global.GoatBot.tempInstalls.has(name)) {
-        return api.sendMessage(`⚠️ "${name}" পার্মানেন্ট কমান্ড। মুছতে চাইলে "delet" লিখে রিপ্লাই দিন।`, threadID, (err, info) => {
+        return api.sendMessage(`⚠️ "${name}" পার্মানেন্ট কমান্ড। রিপ্লেস করতে "delet" লিখে রিপ্লাই দিন।`, threadID, (err, info) => {
             global.GoatBot.onReply.set(info.messageID, { commandName: "install", author: senderID, name, sourceCode, messageID: info.messageID });
         }, messageID);
     }
 
     try {
-        await performInstall(name, sourceCode, api, threadID, messageID);
-    } catch (err) {
-        api.sendMessage(err.message, threadID, messageID);
-    }
-};
+        // ১০% এ আটকে যাওয়া রোধ করতে অ্যানিমেশন আরও দ্রুত করা হয়েছে
+        const resMsg = await api.sendMessage("⏳ 𝗜𝗻𝘀𝘁𝗮𝗹𝗹𝗶𝗻𝗴... [ 𝟭𝟬% ]", threadID);
+        
+        await new Promise(r => setTimeout(r, 600));
+        await api.editMessage("⏳ 𝗜𝗻𝘀𝘁𝗮𝗹𝗹𝗶𝗻𝗴... [ 𝟲𝟬% ]", resMsg.messageID).catch(() => {});
+        
+        await new Promise(r => setTimeout(r, 600));
+        await api.editMessage("⏳ 𝗜𝗻𝘀𝘁𝗮𝗹𝗹𝗶𝗻𝗴... [ 𝟭𝟬𝟬% ]", resMsg.messageID).catch(() => {});
+
+        await performInstallLogic(name, sourceCode);
+
+        const successStyle = `╭─────────────╮
+   📥 𝗜𝗡𝗦𝗧𝗔𝗟𝗟 𝗗𝗢𝗡𝗘 📥
+╰─────────────╯
+━━━━━━━━━━━━━━━
+🚀 𝗦𝘁𝗮𝘁𝘂𝘀: সফলভাবে ইনস্টল হয়েছে!
+📝 𝗡𝗮𝗺𝗲: 『 ${name.toUpperCas
