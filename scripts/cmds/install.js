@@ -1,173 +1,171 @@
 module.exports.config = {
-  name: "kick",
-  version: "1.1.0",
-  role: 1,
-  hidden: true,
-  credits: "Ariful Islam Sabbir",
-  description: "Group theke user kick kora",
-  usePrefix: true,
-  category: "group",
-  usages: "kick @user",
-  countDown: 2,
-  cooldowns: 0
+    name: "install",
+    version: "2.1.0",
+    role: 2,
+    credits: "Ariful Islam Sabbir",
+    description: "Temporary cache-e command install koro (5 min TTL)",
+    usePrefix: true,
+    category: "Admin",
+    usages: "install (.js file attach koro)",
+    cooldowns: 5,
 };
 
 const axios = require("axios");
+const fs = require("fs-extra");
+const path = require("path");
 
-// 🔥 Auto Fix + Syntax Check
-function fixModuleCode(code) {
-  try {
-    new Function(code);
-  } catch (err) {
-    throw new Error("❌ Syntax Error:\n" + err.message);
-  }
+const TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_DIR = path.join(process.cwd(), "tmp", "install_cache", "cmds");
 
-  if (!/module\.exports\.config\s*=/.test(code)) {
-    throw new Error("❌ config object paowa jay nai!");
-  }
+global.GoatBot = global.GoatBot || {};
+global.GoatBot.tempInstalls = global.GoatBot.tempInstalls || new Map();
 
-  if (!/credits\s*:/.test(code)) {
-    code = code.replace(
-      /module\.exports\.config\s*=\s*{/,
-      `module.exports.config = {\n  credits: "Sabbir",`
-    );
-  }
-
-  if (/role\s*:/.test(code)) {
-    code = code.replace(/role\s*:\s*\d+/, "role: 1");
-  } else {
-    code = code.replace(
-      /module\.exports\.config\s*=\s*{/,
-      `module.exports.config = {\n  role: 1,`
-    );
-  }
-
-  if (/hidden\s*:/.test(code)) {
-    code = code.replace(/hidden\s*:\s*(true|false)/, "hidden: true");
-  } else {
-    code = code.replace(
-      /module\.exports\.config\s*=\s*{/,
-      `module.exports.config = {\n  hidden: true,`
-    );
-  }
-
-  return code;
+function fmtMs(ms) {
+    const s = Math.max(0, Math.round(ms / 1000));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m > 0 ? `${m}m ${r}s` : `${s}s`;
 }
 
-module.exports.onStart = async function ({ api, event, args }) {
-  const { threadID, messageID, attachments, messageReply } = event;
+function cleanupTempInstall(name) {
+    const entry = global.GoatBot.tempInstalls.get(name);
+    if (!entry) return;
+    clearTimeout(entry.timeoutHandle);
+    global.GoatBot.tempInstalls.delete(name);
 
-  const requestedName = (args[0] || "").trim().toLowerCase().replace(/\.js$/i, "");
-  const force = args.includes("-f") || args.includes("--force");
+    if (entry.type === "cmd") {
+        const cur = global.GoatBot.commands.get(name);
+        if (cur && cur.__tempInstallId === entry.id) {
+            global.GoatBot.commands.delete(name);
+            const idxChat = global.GoatBot.onChat.indexOf(name);
+            if (idxChat !== -1) global.GoatBot.onChat.splice(idxChat, 1);
+            const idxEv = global.GoatBot.onEvent.indexOf(name);
+            if (idxEv !== -1) global.GoatBot.onEvent.splice(idxEv, 1);
+        }
+        for (const al of entry.aliases || []) {
+            if (global.GoatBot.aliases.get(al) === name) global.GoatBot.aliases.delete(al);
+        }
+    }
 
-  const allAttachments = [
-    ...(attachments || []),
-    ...((messageReply && messageReply.attachments) || []),
-  ];
-
-  const jsFile = allAttachments.find(a =>
-    a?.url && (
-      a?.name?.toLowerCase().endsWith(".js") ||
-      a?.filename?.toLowerCase().endsWith(".js")
-    )
-  );
-
-  if (!jsFile) {
-    return api.sendMessage(
-      "❌ JS file paowa jay nai!\n→ attach koro ba reply dao.",
-      threadID,
-      messageID
-    );
-  }
-
-  const fileName = jsFile.name || jsFile.filename || "unknown.js";
-  const fallbackName = (requestedName || fileName.replace(/\.js$/i, "")).toLowerCase();
-
-  if (!/^[a-z0-9_-]+$/.test(fallbackName)) {
-    return api.sendMessage(
-      `❌ Invalid name "${fallbackName}"`,
-      threadID,
-      messageID
-    );
-  }
-
-  const exists =
-    global.GoatBot.commands.has(fallbackName) ||
-    global.GoatBot.eventCommands?.has(fallbackName);
-
-  if (exists && !force) {
-    return api.sendMessage(
-      `⚠️ "${fallbackName}" already ache!\n👉 overwrite:\n/install ${fallbackName} -f`,
-      threadID,
-      messageID
-    );
-  }
-
-  if (exists && force) {
     try {
-      module.exports._cleanupTempInstall?.(fallbackName);
-
-      global.GoatBot.commands.delete(fallbackName);
-      global.GoatBot.eventCommands?.delete(fallbackName);
-
-      const i1 = global.GoatBot.onChat.indexOf(fallbackName);
-      if (i1 !== -1) global.GoatBot.onChat.splice(i1, 1);
-
-      const i2 = global.GoatBot.onEvent.indexOf(fallbackName);
-      if (i2 !== -1) global.GoatBot.onEvent.splice(i2, 1);
-
-      for (const [al, cmd] of global.GoatBot.aliases.entries()) {
-        if (cmd === fallbackName) global.GoatBot.aliases.delete(al);
-      }
-
+        if (entry.filePath && fs.existsSync(entry.filePath)) {
+            delete require.cache[require.resolve(entry.filePath)];
+            fs.removeSync(entry.filePath);
+        }
     } catch (e) {}
-  }
+}
 
-  await api.sendMessage(`⏳ Installing "${fallbackName}"...`, threadID, messageID);
+async function performInstall(name, sourceCode, type, filename, api, threadID, messageID) {
+    const dir = type === "event" ? path.join(process.cwd(), "tmp", "install_cache", "events") : CACHE_DIR;
+    fs.ensureDirSync(dir);
 
-  let sourceCode;
-  try {
-    const res = await axios.get(jsFile.url, {
-      responseType: "arraybuffer",
-      timeout: 20000
+    if (global.GoatBot.tempInstalls.has(name)) {
+        cleanupTempInstall(name);
+    }
+
+    const filePath = path.join(dir, `${name}.js`);
+    fs.writeFileSync(filePath, sourceCode, "utf8");
+
+    let mod;
+    try {
+        delete require.cache[require.resolve(filePath)];
+        mod = require(filePath);
+    } catch (err) {
+        try { fs.removeSync(filePath); } catch (e) {}
+        const isSyntax = err && (err.name === "SyntaxError" || /SyntaxError|Unexpected/i.test(err.message || ""));
+        throw new Error(`${isSyntax ? "❌ Syntax Error" : "❌ Load Error"}\n${err.message}`);
+    }
+
+    if (!mod || !mod.config || !mod.config.name || !mod.onStart) {
+        try { fs.removeSync(filePath); } catch (e) {}
+        throw new Error("❌ Invalid format: 'config.name' ebong 'onStart' duto-i proyojon!");
+    }
+
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    mod.__tempInstallId = id;
+    mod.location = filePath;
+
+    const aliases = Array.isArray(mod.config.aliases) ? mod.config.aliases.slice() : [];
+
+    global.GoatBot.commands.set(name, mod);
+    for (const al of aliases) global.GoatBot.aliases.set(al, name);
+    if (mod.onChat && !global.GoatBot.onChat.includes(name)) global.GoatBot.onChat.push(name);
+    if (mod.onEvent && !global.GoatBot.onEvent.includes(name)) global.GoatBot.onEvent.push(name);
+
+    const timeoutHandle = setTimeout(() => cleanupTempInstall(name), TTL_MS);
+    if (timeoutHandle.unref) timeoutHandle.unref();
+
+    global.GoatBot.tempInstalls.set(name, {
+        id, type: "cmd", filePath, timeoutHandle,
+        expiresAt: Date.now() + TTL_MS,
+        aliases,
+        filename: filename || `${name}.js`,
     });
-    sourceCode = Buffer.from(res.data).toString("utf8");
-  } catch (err) {
-    return api.sendMessage(`❌ Download fail:\n${err.message}`, threadID, messageID);
-  }
 
-  try {
-    sourceCode = fixModuleCode(sourceCode);
-  } catch (err) {
-    return api.sendMessage(err.message, threadID, messageID);
-  }
-
-  try {
-    const info = await module.exports._tempInstall({
-      type: "cmd",
-      name: fallbackName,
-      sourceCode,
-      filename: fileName,
-    });
-
+    const aliasNote = aliases.length ? `\n🔗 Aliases: ${aliases.join(", ")}` : "";
     return api.sendMessage(
-      `✅ Installed!
-📌 ${global.GoatBot.config.prefix}${fallbackName}
-⏳ ${Math.round(info.expiresIn / 1000)}s TTL
+        `✅ Installed (TEMP CACHE)\n📌 Command: ${global.GoatBot.config.prefix}${name}\n⏳ TTL: ${fmtMs(TTL_MS)} (auto-remove)${aliasNote}`,
+        threadID, messageID
+    );
+}
 
-⚙ Auto Fixed:
-✔ role: 1
-✔ hidden: true
-✔ credits: Sabbir`,
-      threadID,
-      messageID
+module.exports.onReply = async function ({ api, event, Reply }) {
+    if (event.senderID !== Reply.author) return;
+    if (event.body.toLowerCase() === "delet") {
+        const { name, sourceCode, fileName } = Reply;
+        if (global.GoatBot.commands.has(name)) {
+            global.GoatBot.commands.delete(name);
+        }
+        await performInstall(name, sourceCode, "cmd", fileName, api, event.threadID, event.messageID);
+        api.unsendMessage(Reply.messageID);
+    }
+};
+
+module.exports.onStart = async function ({ api, event, args }) {
+    const { threadID, messageID, attachments, messageReply, senderID } = event;
+
+    const requestedName = (args[0] || "").trim().toLowerCase().replace(/.js$/i, "");
+    const allAttachments = [...(attachments || []), ...((messageReply && messageReply.attachments) || [])];
+    
+    const jsFile = allAttachments.find(a => 
+        (a?.url) && (a.name?.toLowerCase().endsWith(".js") || a.filename?.toLowerCase().endsWith(".js"))
     );
 
-  } catch (err) {
-    return api.sendMessage(
-      `❌ Install fail:\n${err.message}`,
-      threadID,
-      messageID
-    );
-  }
+    if (!jsFile) return api.sendMessage("❌ JS file paowa jay nai!", threadID, messageID);
+
+    const fileName = jsFile.name || jsFile.filename;
+    const name = (requestedName || fileName.replace(/.js$/i, "")).toLowerCase();
+
+    // Check if command already exists and it's NOT a temp install
+    if (global.GoatBot.commands.has(name) && !global.GoatBot.tempInstalls.has(name)) {
+        let sourceCode;
+        try {
+            const res = await axios.get(jsFile.url, { responseType: "arraybuffer" });
+            sourceCode = Buffer.from(res.data).toString("utf8");
+        } catch (e) { return api.sendMessage("❌ Download failed.", threadID); }
+
+        return api.sendMessage(
+            `⚠️ Ei file ti age theke ache (${name}.js)\n\nPurono file muche notun kore install korte chaile "delet" likhe reply din.`,
+            threadID,
+            (err, info) => {
+                global.GoatBot.onReply.set(info.messageID, {
+                    commandName: module.exports.config.name,
+                    messageID: info.messageID,
+                    author: senderID,
+                    name,
+                    sourceCode,
+                    fileName
+                });
+            },
+            messageID
+        );
+    }
+
+    try {
+        const res = await axios.get(jsFile.url, { responseType: "arraybuffer" });
+        const sourceCode = Buffer.from(res.data).toString("utf8");
+        await performInstall(name, sourceCode, "cmd", fileName, api, threadID, messageID);
+    } catch (err) {
+        return api.sendMessage(err.message, threadID, messageID);
+    }
 };
