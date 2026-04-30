@@ -12,8 +12,10 @@ module.exports = function (defaultFuncs, api, ctx) {
         return callback(new Error("MQTT client not available"));
       }
 
-      const payload = JSON.stringify({
-        thread_id: threadID,
+      // Facebook Lightspeed: MarkThreadTyping task via ls_req MQTT
+      const taskPayload = JSON.stringify({
+        thread_key: threadID,
+        is_group_thread: isGroup === true ? 1 : 0,
         is_typing: isTyping ? 1 : 0
       });
 
@@ -22,7 +24,7 @@ module.exports = function (defaultFuncs, api, ctx) {
         payload: JSON.stringify({
           tasks: [{
             label: "3",
-            payload: payload,
+            payload: taskPayload,
             queue_name: "MarkThreadTyping",
             task_id: Math.random() * 1001 << 0,
             failure_count: null
@@ -34,8 +36,14 @@ module.exports = function (defaultFuncs, api, ctx) {
         type: 3
       });
 
-      ctx.mqttClient.publish("/ls_req", form, { qos: 1, retain: false });
-      callback();
+      ctx.mqttClient.publish("/ls_req", form, { qos: 1, retain: false }, function(err) {
+        if (err) {
+          log.error("sendTypingIndicator", err);
+          return callback(err);
+        }
+        callback();
+      });
+
     } catch (err) {
       log.error("sendTypingIndicator", err);
       callback(err);
