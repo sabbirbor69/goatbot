@@ -8,6 +8,7 @@ async function typeAndDelay(api, threadID, isGroup, ms) {
   if (typeof ms !== "number") ms = 2000;
   try {
     if (typeof api.sendTypingIndicator === "function") {
+      // টাইপিং শুরু হবে, এটি মেসেজ না পাঠানো পর্যন্ত স্থায়ী হবে
       api.sendTypingIndicator(threadID, (err) => {}, !!isGroup);
     }
   } catch (_) {}
@@ -17,6 +18,7 @@ async function typeAndDelay(api, threadID, isGroup, ms) {
 async function _editApi(api, messageID, newText) {
   if (typeof api.editMessage !== "function") return false;
   try {
+    // এডিট এপিআই কল
     await api.editMessage(newText, messageID);
     return true;
   } catch (err) {
@@ -26,7 +28,7 @@ async function _editApi(api, messageID, newText) {
 
 async function animateSendLines(api, threadID, lines, opts) {
   opts = opts || {};
-  const perLineMs = opts.perLineMs || 600; // এডিট স্পিড কিছুটা কমানো হয়েছে সেফটির জন্য
+  const perLineMs = opts.perLineMs || 600; 
   const typingMs = opts.typingMs || 1500;
   const showTyping = opts.showTyping !== false;
 
@@ -46,14 +48,10 @@ async function animateSendLines(api, threadID, lines, opts) {
 
   if (!sent || !sent.messageID) return sent;
 
-  // লুপ কন্ট্রোল
   for (let i = 0; i < lines.length; i++) {
     const textToEdit = lines.slice(0, i + 1).join("\n");
     const ok = await _editApi(api, sent.messageID, textToEdit);
-    
-    // যদি এডিট ব্যর্থ হয় (Rate limit), তবে লুপ থামিয়ে দেওয়া হবে
-    if (!ok) break; 
-    
+    if (!ok) break; // রেট লিমিট বা এরর হলে লুপ থামবে
     if (i < lines.length - 1) await sleep(perLineMs);
   }
 
