@@ -7,16 +7,13 @@ module.exports = function (defaultFuncs, api, ctx) {
   function makeTypingIndicator(typ, threadID, callback, isGroup) {
     var form = {
       typ: +typ,
-      to: threadID, // ডিফল্টভাবে সরাসরি আইডি বসিয়ে দেওয়া হয়েছে গতি বাড়াতে
-      source: "mercury-chat",
-      thread: threadID
+      source: "mercury-chat"
     };
 
-    // যদি এটি গ্রুপ চ্যাট না হয় (অর্থাৎ সিঙ্গেল চ্যাট), তবে 'to' প্যারামিটার ব্যবহার হয়
-    if (isGroup === false) {
-        form.to = threadID;
-    } else if (isGroup === true) {
-        form.to = ""; // গ্রুপের ক্ষেত্রে 'to' খালি রাখতে হয়
+    if (isGroup === true) {
+      form.thread_fbid = threadID;
+    } else {
+      form.to = threadID;
     }
 
     defaultFuncs
@@ -37,7 +34,6 @@ module.exports = function (defaultFuncs, api, ctx) {
 
   return function sendTypingIndicator(threadID, callback, isGroup) {
     if (typeof callback !== "function") {
-      // যদি ইউজার ৩য় প্যারামিটারে callback না দিয়ে সরাসরি Boolean (true/false) দেয়
       if (typeof callback === "boolean") {
         isGroup = callback;
       }
