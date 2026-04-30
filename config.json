@@ -34,7 +34,7 @@
   },
   "autoseen": {
     "enabled": true
-  }
+  },
   "database": {
     "autoSyncWhenStart": false
   },
