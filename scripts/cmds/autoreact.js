@@ -13,10 +13,7 @@ if (!global.autoReactThreads) global.autoReactThreads = new Set();
 module.exports.config = {
   name: "autoreact",
   version: "1.2.0",
-  role: {
-    onStart: 2,
-    onChat: 0
-  },
+  role: 1,
   credits: "Ariful Islam Sabbir",
   usePrefix: true,
   category: "System",
