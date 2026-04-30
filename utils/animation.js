@@ -8,7 +8,6 @@ async function typeAndDelay(api, threadID, isGroup, ms) {
   if (typeof ms !== "number") ms = 2000;
   try {
     if (typeof api.sendTypingIndicator === "function") {
-      // টাইপিং শুরু হবে, এটি মেসেজ না পাঠানো পর্যন্ত স্থায়ী হবে
       api.sendTypingIndicator(threadID, (err) => {}, !!isGroup);
     }
   } catch (_) {}
@@ -18,7 +17,6 @@ async function typeAndDelay(api, threadID, isGroup, ms) {
 async function _editApi(api, messageID, newText) {
   if (typeof api.editMessage !== "function") return false;
   try {
-    // এডিট এপিআই কল
     await api.editMessage(newText, messageID);
     return true;
   } catch (err) {
@@ -51,10 +49,9 @@ async function animateSendLines(api, threadID, lines, opts) {
   for (let i = 0; i < lines.length; i++) {
     const textToEdit = lines.slice(0, i + 1).join("\n");
     const ok = await _editApi(api, sent.messageID, textToEdit);
-    if (!ok) break; // রেট লিমিট বা এরর হলে লুপ থামবে
+    if (!ok) break; 
     if (i < lines.length - 1) await sleep(perLineMs);
   }
-
   return sent;
 }
 
