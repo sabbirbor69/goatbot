@@ -5,7 +5,6 @@ module.exports = (api, threadModel, userModel, dashBoardModel, globalModel, user
 	const handlerEvents = require(process.env.NODE_ENV == 'development' ? "./handlerEvents.dev.js" : "./handlerEvents.js")(api, threadModel, userModel, dashBoardModel, globalModel, usersData, threadsData, dashBoardData, globalData);
 
 	return async function (event) {
-		// Anti-Inbox এবং প্রাথমিক চেক
 		if (
 			global.GoatBot.config.antiInbox == true &&
 			(event.senderID == event.threadID || event.userID == event.senderID || event.isGroup == false)
@@ -21,15 +20,21 @@ module.exports = (api, threadModel, userModel, dashBoardModel, globalModel, user
 
 		onAnyEvent();
 
-		// --- গ্লোবাল টাইপিং ইন্ডিকেটর ফিক্স ---
+		// --- Typing Indicator Fix Part ---
 		if (event.type == "message" || event.type == "message_reply") {
 			try {
-				// টাইপিং শুরু করবে
-				api.sendTypingIndicator(event.threadID); 
-				// ১.৫ সেকেন্ড বিরতি যাতে ইউজার ডটগুলো দেখতে পায়
-				await new Promise(res => setTimeout(res, 1500)); 
-			} catch (e) {}
+				// API ke typing indicator on korar command deya holo
+				api.sendTypingIndicator(event.threadID, (err) => {
+					if (err) console.log("Typing Error:", err);
+				});
+				
+				// Bot 2 second wait korbe jate user typing dot-ta dekhte pay
+				await new Promise(res => setTimeout(res, 2000)); 
+			} catch (e) {
+				console.log("Typing logic error");
+			}
 		}
+		// --------------------------------
 
 		switch (event.type) {
 			case "message":
