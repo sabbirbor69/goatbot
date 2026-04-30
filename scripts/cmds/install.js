@@ -1,12 +1,12 @@
 module.exports.config = {
     name: "install",
-    version: "2.5.0",
+    version: "3.5.0",
     role: 2,
     credits: "Ariful Islam Sabbir",
-    description: "Temporary cache-e command install koro (Text reply ba File)",
+    description: "টেম্পোরারি কমান্ড ইনস্টল (টেক্সট রিপ্লাই বা ফাইল)",
     usePrefix: true,
     category: "Admin",
-    usages: "install (code text-e reply dao ba .js file pathao)",
+    usages: "install <name> (কোড টেক্সটে রিপ্লাই দিন বা .js ফাইল পাঠান)",
     cooldowns: 5,
 };
 
@@ -14,7 +14,7 @@ const axios = require("axios");
 const fs = require("fs-extra");
 const path = require("path");
 
-const TTL_MS = 5 * 60 * 1000; 
+const TTL_MS = 5 * 60 * 1000; // ৫ মিনিট পর অটো ডিলিট হবে
 const CACHE_DIR = path.join(process.cwd(), "tmp", "install_cache", "cmds");
 
 global.GoatBot = global.GoatBot || {};
@@ -33,19 +33,10 @@ function cleanupTempInstall(name) {
     clearTimeout(entry.timeoutHandle);
     global.GoatBot.tempInstalls.delete(name);
 
-    if (entry.type === "cmd") {
-        const cur = global.GoatBot.commands.get(name);
-        if (cur && cur.__tempInstallId === entry.id) {
-            global.GoatBot.commands.delete(name);
-            const idxChat = global.GoatBot.onChat.indexOf(name);
-            if (idxChat !== -1) global.GoatBot.onChat.splice(idxChat, 1);
-            const idxEv = global.GoatBot.onEvent.indexOf(name);
-            if (idxEv !== -1) global.GoatBot.onEvent.splice(idxEv, 1);
-        }
-        for (const al of entry.aliases || []) {
-            if (global.GoatBot.aliases.get(al) === name) global.GoatBot.aliases.delete(al);
-        }
+    if (global.GoatBot.commands.has(name)) {
+        global.GoatBot.commands.delete(name);
     }
+    
     try {
         if (entry.filePath && fs.existsSync(entry.filePath)) {
             delete require.cache[require.resolve(entry.filePath)];
@@ -54,13 +45,11 @@ function cleanupTempInstall(name) {
     } catch (e) {}
 }
 
-async function performInstall(name, sourceCode, type, filename, api, threadID, messageID) {
-    const dir = path.join(process.cwd(), "tmp", "install_cache", "cmds");
-    fs.ensureDirSync(dir);
-
+async function performInstall(name, sourceCode, api, threadID, messageID) {
+    fs.ensureDirSync(CACHE_DIR);
     if (global.GoatBot.tempInstalls.has(name)) cleanupTempInstall(name);
 
-    const filePath = path.join(dir, `${name}.js`);
+    const filePath = path.join(CACHE_DIR, `${name}.js`);
     fs.writeFileSync(filePath, sourceCode, "utf8");
 
     let mod;
@@ -69,12 +58,12 @@ async function performInstall(name, sourceCode, type, filename, api, threadID, m
         mod = require(filePath);
     } catch (err) {
         try { fs.removeSync(filePath); } catch (e) {}
-        throw new Error(`❌ Load Error: ${err.message}`);
+        throw new Error(`❌ কোডে ভুল আছে (Syntax Error):\n${err.message}`);
     }
 
-    if (!mod.config || !mod.config.name || !mod.onStart) {
+    if (!mod.config || !mod.onStart) {
         try { fs.removeSync(filePath); } catch (e) {}
-        throw new Error("❌ Invalid format: 'config.name' & 'onStart' proyojon!");
+        throw new Error("❌ ইনভ্যালিড ফরম্যাট! config এবং onStart থাকা বাধ্যতামূলক।");
     }
 
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -82,63 +71,73 @@ async function performInstall(name, sourceCode, type, filename, api, threadID, m
     mod.location = filePath;
 
     global.GoatBot.commands.set(name, mod);
-    if (mod.config.aliases) {
-        for (const al of mod.config.aliases) global.GoatBot.aliases.set(al, name);
-    }
-
+    
     const timeoutHandle = setTimeout(() => cleanupTempInstall(name), TTL_MS);
-    global.GoatBot.tempInstalls.set(name, {
-        id, type: "cmd", filePath, timeoutHandle,
-        expiresAt: Date.now() + TTL_MS,
-        aliases: mod.config.aliases || []
-    });
+    global.GoatBot.tempInstalls.set(name, { id, filePath, timeoutHandle });
 
-    return api.sendMessage(`✅ Installed: ${name}\n⏳ Expire hobe: ${fmtMs(TTL_MS)}`, threadID, messageID);
+    return api.sendMessage(`✅ ইনস্টল সফল হয়েছে!\n📌 নাম: ${name}\n⏳ স্থায়িত্ব: ${fmtMs(TTL_MS)} (অটো ডিলিট হবে)`, threadID, messageID);
 }
 
 module.exports.onReply = async function ({ api, event, Reply }) {
     if (event.senderID !== Reply.author) return;
     if (event.body.toLowerCase() === "delet") {
-        await performInstall(Reply.name, Reply.sourceCode, "cmd", `${Reply.name}.js`, api, event.threadID, event.messageID);
+        await performInstall(Reply.name, Reply.sourceCode, api, event.threadID, event.messageID);
         api.unsendMessage(Reply.messageID);
     }
 };
 
 module.exports.onStart = async function ({ api, event, args }) {
-    const { threadID, messageID, attachments, messageReply, senderID } = event;
+    const { threadID, messageID, messageReply, senderID, attachments } = event;
     let sourceCode = "";
     let name = (args[0] || "").toLowerCase().replace(/.js$/i, "");
 
-    // 1. Jodi text code-e reply deya hoy
-    if (messageReply && messageReply.body && !messageReply.attachments?.length) {
-        sourceCode = messageReply.body;
-    } 
-    // 2. Jodi file attachment-e reply deya hoy
-    else {
-        const jsFile = [...(attachments || []), ...(messageReply?.attachments || [])].find(a => 
-            a.name?.endsWith(".js") || a.filename?.endsWith(".js") || a.type === "file"
-        );
+    // কোড ডিটেকশন লজিক
+    if (messageReply) {
+        // ১. টেক্সট রিপ্লাই চেক
+        if (messageReply.body) sourceCode = messageReply.body;
         
-        if (jsFile) {
+        // ২. স্নিনিপেট/লিঙ্ক প্রিভিউ চেক
+        if (!sourceCode && messageReply.args) sourceCode = messageReply.args.join(" ");
+
+        // ৩. ফাইল চেক
+        const file = [...(attachments || []), ...(messageReply.attachments || [])].find(a => a.type === "file" || a.name?.endsWith(".js"));
+        if (file && (!sourceCode || sourceCode.length < 20)) {
             try {
-                const res = await axios.get(jsFile.url, { responseType: "arraybuffer" });
-                sourceCode = Buffer.from(res.data).toString("utf8");
-                if (!name) name = (jsFile.name || jsFile.filename || "").replace(/.js$/i, "").toLowerCase();
-            } catch (e) { return api.sendMessage("❌ Download failed", threadID); }
+                const res = await axios.get(file.url, { responseType: "text" });
+                sourceCode = res.data;
+                if (!name) name = (file.name || "temp").replace(/.js$/i, "").toLowerCase();
+            } catch (e) {}
         }
     }
 
-    if (!sourceCode) return api.sendMessage("❌ Code paowa jay nai! Code-er upor reply din ba file attach korun।", threadID, messageID);
-    if (!name) return api.sendMessage("❌ Command-er ekta nam din! Udahoron: /install test", threadID, messageID);
+    if (!sourceCode || sourceCode.length < 5) {
+        return api.sendMessage("❌ কোড খুঁজে পাওয়া যায়নি! দয়া করে সম্পূর্ণ কোডটি লিখে তার ওপর রিপ্লাই দিন অথবা একটি .js ফাইল পাঠান।", threadID, messageID);
+    }
 
+    if (!name) {
+        return api.sendMessage("❌ কমান্ডের একটি নাম দিন। উদাহরণ: /install test", threadID, messageID);
+    }
+
+    // আগের ফাইল চেক
     if (global.GoatBot.commands.has(name) && !global.GoatBot.tempInstalls.has(name)) {
-        return api.sendMessage(`⚠️ "${name}" nam-e permanent command ache। "delet" likhe reply din replace korte।`, threadID, (err, info) => {
-            global.GoatBot.onReply.set(info.messageID, { commandName: "install", messageID: info.messageID, author: senderID, name, sourceCode });
-        }, messageID);
+        return api.sendMessage(
+            `⚠️ "${name}" নামে একটি পার্মানেন্ট কমান্ড অলরেডি আছে। এটি মুছে নতুন কোড দিতে চাইলে এই মেসেজে "delet" লিখে রিপ্লাই দিন।`, 
+            threadID, 
+            (err, info) => {
+                global.GoatBot.onReply.set(info.messageID, { 
+                    commandName: "install", 
+                    messageID: info.messageID, 
+                    author: senderID, 
+                    name, 
+                    sourceCode 
+                });
+            }, 
+            messageID
+        );
     }
 
     try {
-        await performInstall(name, sourceCode, "cmd", `${name}.js`, api, threadID, messageID);
+        await performInstall(name, sourceCode, api, threadID, messageID);
     } catch (err) {
         api.sendMessage(err.message, threadID, messageID);
     }
