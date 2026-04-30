@@ -5,6 +5,7 @@ module.exports = (api, threadModel, userModel, dashBoardModel, globalModel, user
 	const handlerEvents = require(process.env.NODE_ENV == 'development' ? "./handlerEvents.dev.js" : "./handlerEvents.js")(api, threadModel, userModel, dashBoardModel, globalModel, usersData, threadsData, dashBoardData, globalData);
 
 	return async function (event) {
+		// Anti-Inbox সেটিংস চেক
 		if (
 			global.GoatBot.config.antiInbox == true &&
 			(event.senderID == event.threadID || event.userID == event.senderID || event.isGroup == false)
@@ -12,30 +13,44 @@ module.exports = (api, threadModel, userModel, dashBoardModel, globalModel, user
 			return;
 
 		const message = createFuncMessage(api, event);
+
+		// ডাটাবেজ চেক
 		await handlerCheckDB(usersData, threadsData, event);
 		const handlerChat = await handlerEvents(event, message);
-		if (!handlerChat) return;
+		
+		if (!handlerChat)
+			return;
 
-		const { onAnyEvent, onFirstChat, onStart, onChat, onReply, handlerEvent, onEvent, onReaction, typ, presence, read_receipt } = handlerChat;
+		const {
+			onAnyEvent, onFirstChat, onStart, onChat,
+			onReply, onEvent, handlerEvent, onReaction,
+			typ, presence, read_receipt
+		} = handlerChat;
 
 		onAnyEvent();
 
-		// --- Typing Indicator Fix Part ---
+		// --- গ্লোবাল টাইপিং ইন্ডিকেটর সেকশন ---
+		// ইউজার মেসেজ দিলে বা রিপ্লাই দিলে এই অংশটি কাজ করবে
 		if (event.type == "message" || event.type == "message_reply") {
 			try {
-				// API ke typing indicator on korar command deya holo
+				/** 
+				 * api.sendTypingIndicator(threadID, callback, isGroup)
+				 * এখানে event.isGroup পাঠানো হচ্ছে যাতে আপনার সংশোধিত sendTypingIndicator.js 
+				 * দ্রুত সিদ্ধান্ত নিতে পারে এটি গ্রুপ নাকি সিঙ্গেল চ্যাট।
+				 */
 				api.sendTypingIndicator(event.threadID, (err) => {
-					if (err) console.log("Typing Error:", err);
-				});
-				
-				// Bot 2 second wait korbe jate user typing dot-ta dekhte pay
-				await new Promise(res => setTimeout(res, 2000)); 
+					if (err) console.error("Typing Error:", err);
+				}, event.isGroup);
+
+				// ২ সেকেন্ড ডট দেখানোর জন্য ওয়েট করবে
+				await new Promise(resolve => setTimeout(resolve, 2000));
 			} catch (e) {
-				console.log("Typing logic error");
+				// টাইপিং ফেল করলে বট যাতে থেমে না যায়
 			}
 		}
-		// --------------------------------
+		// ------------------------------------
 
+		// ইভেন্ট অনুযায়ী কমান্ড এক্সিকিউশন
 		switch (event.type) {
 			case "message":
 			case "message_reply":
