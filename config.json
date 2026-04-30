@@ -32,6 +32,9 @@
     "autoMarkDelivery": true,
     "autoMarkRead": true
   },
+  "autoseen": {
+    "enabled": true
+  }
   "database": {
     "autoSyncWhenStart": false
   },
