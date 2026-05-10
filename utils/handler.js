@@ -1,40 +1,168 @@
 /**
  * GOAT-BOT: handler.js
- * এটি কমান্ড এবং ইভেন্টগুলোকে অটোমেটিক লোড করে।
+ * Auto command + event loader
+ * Fixed By Ariful Islam Sabbir
  */
 
-const fs = require('fs');
-const path = require('path');
-const logger = require('./logger');
+const fs = require("fs");
+const path = require("path");
+const logger = require("./logger");
 
 module.exports = (client) => {
-    const commandsPath = path.join(__dirname, '../commands');
-    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
-    for (const file of commandFiles) {
-        const filePath = path.join(commandsPath, file);
-        const command = require(filePath);
-        if (command.name && command.execute) {
-            client.commands.set(command.name, command);
-        } else {
-            logger.warn(`ফাইলটি লোড করা যায়নি: ${file} (নাম বা এক্সিকিউট ফাংশন নেই)`);
-        }
-    }
-    logger.info(`${client.commands.size}টি কমান্ড সফলভাবে লোড হয়েছে।`);
-    const eventsPath = path.join(__dirname, '../events');
-    const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+	// ================= COMMANDS ================= //
 
-    for (const file of eventFiles) {
-        const filePath = path.join(eventsPath, file);
-        const event = require(filePath);
+	client.commands = new Map();
 
-        if (event.name && event.execute) {
-            if (event.once) {
-                client.once(event.name, (...args) => event.execute(...args, client));
-            } else {
-                client.on(event.name, (...args) => event.execute(...args, client));
-            }
-        }
-    }
-    logger.info(`${eventFiles.length}টি ইভেন্ট সফলভাবে লোড হয়েছে।`);
+	const commandsPath =
+		path.join(__dirname, "../commands");
+
+	if (!fs.existsSync(commandsPath)) {
+
+		logger.warn(
+			"commands folder পাওয়া যায়নি"
+		);
+
+		return;
+	}
+
+	const commandFiles =
+		fs.readdirSync(commandsPath)
+		.filter(file => file.endsWith(".js"));
+
+	for (const file of commandFiles) {
+
+		try {
+
+			const filePath =
+				path.join(commandsPath, file);
+
+			delete require.cache[
+				require.resolve(filePath)
+			];
+
+			const command =
+				require(filePath);
+
+			// GoatBot style support
+			const cmdName =
+				command?.config?.name ||
+				command?.name;
+
+			const runFunc =
+				command?.onStart ||
+				command?.execute;
+
+			if (cmdName && runFunc) {
+
+				client.commands.set(
+					cmdName,
+					command
+				);
+
+				logger.info(
+					`Loaded command: ${cmdName}`
+				);
+
+			} else {
+
+				logger.warn(
+					`Load failed: ${file}`
+				);
+			}
+
+		} catch (e) {
+
+			logger.error(
+				`Command Error (${file})`,
+				e
+			);
+		}
+	}
+
+	logger.info(
+		`${client.commands.size}টি command load হয়েছে`
+	);
+
+	// ================= EVENTS ================= //
+
+	const eventsPath =
+		path.join(__dirname, "../events");
+
+	if (!fs.existsSync(eventsPath)) {
+
+		logger.warn(
+			"events folder পাওয়া যায়নি"
+		);
+
+		return;
+	}
+
+	const eventFiles =
+		fs.readdirSync(eventsPath)
+		.filter(file => file.endsWith(".js"));
+
+	for (const file of eventFiles) {
+
+		try {
+
+			const filePath =
+				path.join(eventsPath, file);
+
+			delete require.cache[
+				require.resolve(filePath)
+			];
+
+			const event =
+				require(filePath);
+
+			const eventName =
+				event?.name;
+
+			const execute =
+				event?.execute ||
+				event?.onStart;
+
+			if (!eventName || !execute) {
+
+				logger.warn(
+					`Event load failed: ${file}`
+				);
+
+				continue;
+			}
+
+			if (event.once) {
+
+				client.once(
+					eventName,
+					(...args) =>
+					execute(...args, client)
+				);
+
+			} else {
+
+				client.on(
+					eventName,
+					(...args) =>
+					execute(...args, client)
+				);
+			}
+
+			logger.info(
+				`Loaded event: ${eventName}`
+			);
+
+		} catch (e) {
+
+			logger.error(
+				`Event Error (${file})`,
+				e
+			);
+		}
+	}
+
+	logger.info(
+		`${eventFiles.length}টি event load হয়েছে`
+	);
 };
