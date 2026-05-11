@@ -5,19 +5,16 @@ module.exports = async (api, event, logger, getText) => {
 	try {
 		const commandPath = path.join(__dirname, "../scripts/cmds");
 
-		// command folder check
 		if (!fs.existsSync(commandPath)) return;
 
 		const body = (event.body || "").trim();
 
-		// empty message ignore
 		if (!body) return;
 
 		const prefix = global.GoatBot?.config?.prefix || "/";
 
 		let commandName = body.split(/\s+/)[0].toLowerCase();
 
-		// remove prefix
 		if (commandName.startsWith(prefix)) {
 			commandName = commandName.slice(prefix.length);
 		}
@@ -30,23 +27,19 @@ module.exports = async (api, event, logger, getText) => {
 
 		for (const file of commandFiles) {
 
-			// hot reload
 			delete require.cache[
 				require.resolve(path.join(commandPath, file))
 			];
 
 			const command = require(path.join(commandPath, file));
 
-			// invalid command skip
 			if (!command.config || !command.config.name)
 				continue;
 
 			const cmdName = command.config.name.toLowerCase();
 
-			// command matched
 			if (cmdName === commandName) {
 
-				// noPrefix support
 				if (
 					!body.startsWith(prefix) &&
 					command.config.noPrefix !== true
@@ -56,7 +49,7 @@ module.exports = async (api, event, logger, getText) => {
 
 				try {
 
-					// typing indicator ON
+					// typing ON
 					let stopTyping = null;
 
 					try {
@@ -70,6 +63,11 @@ module.exports = async (api, event, logger, getText) => {
 						}
 					}
 					catch (_) {}
+
+					// typing visible delay
+					await new Promise(resolve =>
+						setTimeout(resolve, 2000)
+					);
 
 					// GoatBot style
 					if (typeof command.onStart === "function") {
@@ -110,7 +108,7 @@ module.exports = async (api, event, logger, getText) => {
 						});
 					}
 
-					// typing indicator OFF
+					// typing OFF
 					try {
 						if (typeof stopTyping === "function") {
 							stopTyping();
