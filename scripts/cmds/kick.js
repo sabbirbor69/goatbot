@@ -19,16 +19,14 @@ if (!global.recentKicks) global.recentKicks = new Map();
 
 module.exports.config = {
   name: "kick",
-  version: "1.5.0",
+  version: "1.6.0",
   role: 1,
-  hasPermssion: 1,
   credits: "Ariful Islam Sabbir",
   description: "Group theke user kick kora",
   usePrefix: true,
   category: "group",
   usages: "[@tag] / [reply] / [uid] / disable id / inactive <days>",
-  countDown: 2,
-  cooldowns: 0
+  cooldowns: 2
 };
 
 function extractMentionIDs(mentions) {
@@ -44,6 +42,19 @@ function extractMentionIDs(mentions) {
   return [];
 }
 
+// Build threadInfo from cache if API returns null
+function buildFallbackThreadInfo(threadID) {
+  try {
+    const cached = global.db?.allThreadData?.find(t => String(t.threadID) === String(threadID));
+    if (!cached) return null;
+    return {
+      adminIDs: (cached.adminIDs || []).map(a => ({ id: String(a.id || a) })),
+      participantIDs: (cached.members || []).map(String),
+      userInfo: []
+    };
+  } catch (_) { return null; }
+}
+
 module.exports.onStart = async function ({ api, event, args, message }) {
   const { threadID, senderID, mentions, type, messageReply } = event;
 
@@ -51,8 +62,19 @@ module.exports.onStart = async function ({ api, event, args, message }) {
   try {
     threadInfo = await api.getThreadInfo(threadID);
   } catch (e) {
-    console.error("kick getThreadInfo:", e);
-    return message.reply(`❌ Group info নিতে পারছি না\n${e.message || ""}`);
+    // API threw — try the in-memory cache as fallback
+    threadInfo = buildFallbackThreadInfo(threadID);
+    if (!threadInfo) {
+      return message.reply(`❌ Group info নিতে পারছি না\n${e.message || String(e)}`);
+    }
+  }
+
+  // api.getThreadInfo can return null without throwing — guard it
+  if (!threadInfo) {
+    threadInfo = buildFallbackThreadInfo(threadID);
+    if (!threadInfo) {
+      return message.reply("❌ Group info নিতে পারছি না। আবার try করুন।");
+    }
   }
 
   const botID = String(api.getCurrentUserID());
@@ -64,7 +86,7 @@ module.exports.onStart = async function ({ api, event, args, message }) {
   if (!adminIDs.includes(String(senderID)))
     return message.reply("⛔ এই কাজটি শুধুমাত্র group admin করতে পারবে।");
 
-  // ────────── /kick disable id  → kick all disabled / "Facebook User" accounts ──────────
+  // ────────── /kick inactive <days> ──────────
   const subcmd = (args[0] || "").toLowerCase();
   const subcmd2 = (args[1] || "").toLowerCase();
   const isDisableMode = (subcmd === "disable" && (subcmd2 === "id" || subcmd2 === "ids"))
@@ -72,93 +94,91 @@ module.exports.onStart = async function ({ api, event, args, message }) {
                      || subcmd === "disabledid"
                      || subcmd === "disabled";
 
-  // ────────── /kick inactive <days> ──────────
   if (subcmd === "inactive" || subcmd === "inactives" || subcmd === "silent") {
-        const days = parseInt(args[1]);
-        if (!days || days < 1 || days > 365) {
-                return message.reply(
-                        `${header("KICK INACTIVE")}\n` +
-                        `│ ⚠️ Days bolun (1-365)\n` +
-                        `│ Example: /kick inactive 7\n` +
-                        `${footer()}`
-                );
-        }
+    const days = parseInt(args[1]);
+    if (!days || days < 1 || days > 365) {
+      return message.reply(
+        `${header("KICK INACTIVE")}\n` +
+        `│ ⚠️ Days bolun (1-365)\n` +
+        `│ Example: /kick inactive 7\n` +
+        `${footer()}`
+      );
+    }
 
-        const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-        const userInfo = threadInfo.userInfo || [];
-        const allIDs = (threadInfo.participantIDs || userInfo.map(p => p.id)).map(String);
-        const byId = new Map(userInfo.map(p => [String(p.id), p]));
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    const userInfo = threadInfo.userInfo || [];
+    const allIDs = (threadInfo.participantIDs || userInfo.map(p => p.id)).map(String);
+    const byId = new Map(userInfo.map(p => [String(p.id), p]));
 
-        const inactiveList = [];
-        for (const id of allIDs) {
-                if (id === botID) continue;
-                if (adminIDs.includes(id)) continue;
-                if (id === String(senderID)) continue;
-                const lastSeen = activityTracker.getLastSeen(threadID, id);
-                if (!lastSeen || lastSeen < cutoff) {
-                        const p = byId.get(id);
-                        inactiveList.push({
-                                id,
-                                name: (p && (p.name || p.firstName)) || "Unknown",
-                                lastSeen: lastSeen,
-                                inactiveFor: lastSeen ? (Date.now() - lastSeen) : null
-                        });
-                }
-        }
+    const inactiveList = [];
+    for (const id of allIDs) {
+      if (id === botID) continue;
+      if (adminIDs.includes(id)) continue;
+      if (id === String(senderID)) continue;
+      const lastSeen = activityTracker.getLastSeen(threadID, id);
+      if (!lastSeen || lastSeen < cutoff) {
+        const p = byId.get(id);
+        inactiveList.push({
+          id,
+          name: (p && (p.name || p.firstName)) || "Unknown",
+          lastSeen,
+          inactiveFor: lastSeen ? (Date.now() - lastSeen) : null
+        });
+      }
+    }
 
-        if (inactiveList.length === 0) {
-                return message.reply(
-                        `${header("KICK INACTIVE")}\n` +
-                        `│ ✅ ${digital(days)} din+ inactive kau nei\n` +
-                        `${footer()}`
-                );
-        }
+    if (inactiveList.length === 0) {
+      return message.reply(
+        `${header("KICK INACTIVE")}\n` +
+        `│ ✅ ${digital(days)} din+ inactive kau nei\n` +
+        `${footer()}`
+      );
+    }
 
-        let preview = `${header("KICK INACTIVE")}\n`;
-        preview += `│ 📅 Days: ${digital(days)}\n`;
-        preview += `│ 🎯 Found: ${digital(inactiveList.length)} jon\n`;
-        preview += `${divider()}\n`;
-        const showCount = Math.min(inactiveList.length, 10);
-        for (let i = 0; i < showCount; i++) {
-                const u = inactiveList[i];
-                const last = u.inactiveFor ? `${relativeTime(u.inactiveFor)} ago` : "never tracked";
-                preview += `│ ${digital(i + 1)}. ${u.name} — ${last}\n`;
-        }
-        if (inactiveList.length > 10) preview += `│ ... +${digital(inactiveList.length - 10)} more\n`;
-        preview += `${divider()}\n│ ⏳ Kick shuru hocche...\n${footer()}`;
-        await message.reply(preview);
+    let preview = `${header("KICK INACTIVE")}\n`;
+    preview += `│ 📅 Days: ${digital(days)}\n`;
+    preview += `│ 🎯 Found: ${digital(inactiveList.length)} jon\n`;
+    preview += `${divider()}\n`;
+    const showCount = Math.min(inactiveList.length, 10);
+    for (let i = 0; i < showCount; i++) {
+      const u = inactiveList[i];
+      const last = u.inactiveFor ? `${relativeTime(u.inactiveFor)} ago` : "never tracked";
+      preview += `│ ${digital(i + 1)}. ${u.name} — ${last}\n`;
+    }
+    if (inactiveList.length > 10) preview += `│ ... +${digital(inactiveList.length - 10)} more\n`;
+    preview += `${divider()}\n│ ⏳ Kick shuru hocche...\n${footer()}`;
+    await message.reply(preview);
 
-        let success = 0, failed = 0;
-        for (const u of inactiveList) {
-                try {
-                        await api.removeUserFromGroup(u.id, threadID);
-                        global.recentKicks.set(`${threadID}_${u.id}`, Date.now());
-                        success++;
-                } catch (e) {
-                        console.error(`[kick inactive] failed ${u.id}:`, e?.message || e);
-                        failed++;
-                }
-                await new Promise(r => setTimeout(r, 800));
-        }
+    let success = 0, failed = 0;
+    for (const u of inactiveList) {
+      try {
+        await api.removeUserFromGroup(u.id, threadID);
+        global.recentKicks.set(`${threadID}_${u.id}`, Date.now());
+        success++;
+      } catch (e) {
+        console.error(`[kick inactive] failed ${u.id}:`, e?.message || e);
+        failed++;
+      }
+      await new Promise(r => setTimeout(r, 800));
+    }
 
-        return api.sendMessage(
-                `${header("INACTIVE KICK DONE")}\n` +
-                `│ ✅ Success: ${digital(success)}\n` +
-                `│ ❌ Failed:  ${digital(failed)}\n` +
-                `│ 📊 Total:   ${digital(inactiveList.length)}\n` +
-                `│ 📅 Cutoff:  ${digital(days)} din\n` +
-                `${footer()}`,
-                threadID
-        );
+    return api.sendMessage(
+      `${header("INACTIVE KICK DONE")}\n` +
+      `│ ✅ Success: ${digital(success)}\n` +
+      `│ ❌ Failed:  ${digital(failed)}\n` +
+      `│ 📊 Total:   ${digital(inactiveList.length)}\n` +
+      `│ 📅 Cutoff:  ${digital(days)} din\n` +
+      `${footer()}`,
+      threadID
+    );
   }
-  // ────────── End /kick inactive ──────────
 
+  // ────────── /kick disable id ──────────
   if (isDisableMode) {
     const userInfo = threadInfo.userInfo || [];
     const allIDs = (threadInfo.participantIDs || userInfo.map(p => p.id)).map(String);
     const byId = new Map(userInfo.map(p => [String(p.id), p]));
 
-    // Build candidate disabled IDs (generic name OR no name at all)
     const disabledIDs = [];
     for (const id of allIDs) {
       if (id === botID) continue;
@@ -196,8 +216,8 @@ module.exports.onStart = async function ({ api, event, args, message }) {
       threadID
     );
   }
-  // ────────── End /kick disable id ──────────
 
+  // ────────── Normal kick (mention / reply / uid / name) ──────────
   const result = await resolveTargets({ api, event, args });
 
   if (result.ambiguous) {
@@ -242,7 +262,6 @@ module.exports.onStart = async function ({ api, event, args, message }) {
     }
 
     const name = await getName(api, sid, "এই user");
-
     global.recentKicks.set(`${threadID}_${sid}`, Date.now());
 
     try {

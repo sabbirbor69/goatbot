@@ -1,6 +1,16 @@
 const createFuncMessage = global.utils.message;
 const handlerCheckDB = require("./handlerCheckData.js");
 
+function isCommandMessage(event) {
+	try {
+		const body = (event.body || "").trim();
+		if (!body) return false;
+		const td = global.db?.allThreadData?.find(t => String(t.threadID) === String(event.threadID));
+		const prefix = td?.data?.prefix || global.GoatBot?.config?.prefix || "/";
+		return body.startsWith(prefix);
+	} catch (_) { return false; }
+}
+
 module.exports = (api, threadModel, userModel, dashBoardModel, globalModel, usersData, threadsData, dashBoardData, globalData) => {
 	const handlerEvents = require(process.env.NODE_ENV == 'development' ? "./handlerEvents.dev.js" : "./handlerEvents.js")(api, threadModel, userModel, dashBoardModel, globalModel, usersData, threadsData, dashBoardData, globalData);
 
@@ -38,11 +48,14 @@ module.exports = (api, threadModel, userModel, dashBoardModel, globalModel, user
 
 		await onAnyEvent();
 
+		// Only show typing indicator when the message is actually a bot command (starts with prefix)
 		const isMsg = event.type == "message" || event.type == "message_reply";
-		if (isMsg) {
+		const isCommand = isMsg && isCommandMessage(event);
+
+		if (isCommand) {
 			try {
 				await api.sendTypingIndicator(true, event.threadID, () => {});
-				await new Promise(resolve => setTimeout(resolve, 1500));
+				await new Promise(resolve => setTimeout(resolve, 1200));
 			} catch (_) {}
 		}
 
@@ -76,7 +89,7 @@ module.exports = (api, threadModel, userModel, dashBoardModel, globalModel, user
 					break;
 			}
 		} finally {
-			if (isMsg) {
+			if (isCommand) {
 				try { api.sendTypingIndicator(false, event.threadID, () => {}); } catch (_) {}
 			}
 		}
