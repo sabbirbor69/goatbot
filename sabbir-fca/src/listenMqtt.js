@@ -145,7 +145,7 @@ function listenMqtt(defaultFuncs, api, ctx, globalCallback) {
     },
     keepalive: 60,
     reschedulePings: true,
-    reconnectPeriod: 5000,
+    reconnectPeriod: 0,
   };
 
   if (ctx.globalOptions.proxy !== undefined) {
@@ -156,12 +156,23 @@ function listenMqtt(defaultFuncs, api, ctx, globalCallback) {
   ctx.mqttClient = new mqtt.Client(() => buildStream(options, new WebSocket(host, options.wsOptions), buildProxy()), options);
   global.mqttClient = ctx.mqttClient;
 
+  // Guard: prevent multiple concurrent reconnect attempts from racing each other
+  let _reconnecting = false;
+
   global.mqttClient.on('error', (err) => {
     log.error('listenMqtt', err);
-    global.mqttClient.end();
+
+    if (_reconnecting) return;
+    _reconnecting = true;
+
+    try { global.mqttClient.end(true); } catch (_) {}
 
     if (ctx.globalOptions.autoReconnect) {
-      getSeqID();
+      // Delay before reconnecting so Facebook doesn't rate-limit us
+      setTimeout(() => {
+        _reconnecting = false;
+        getSeqID();
+      }, 5000);
     } else {
       globalCallback({
         type: 'stop_listen',
@@ -169,6 +180,17 @@ function listenMqtt(defaultFuncs, api, ctx, globalCallback) {
       }, null);
       return process.exit(1);
     }
+  });
+
+  global.mqttClient.on('close', () => {
+    if (_reconnecting) return;
+    if (!ctx.globalOptions.autoReconnect) return;
+    if (global.Fca.Data.StopListening) return;
+    _reconnecting = true;
+    setTimeout(() => {
+      _reconnecting = false;
+      getSeqID();
+    }, 5000);
   });
 
   global.mqttClient.on('connect', () => {
@@ -337,6 +359,11 @@ function listenMqtt(defaultFuncs, api, ctx, globalCallback) {
 
   global.mqttClient.on('message', HandleMessage);
 
+  // Remove old listeners before adding new ones — prevents MaxListenersExceededWarning
+  // when listenMqtt() is called repeatedly on reconnect cycles.
+  process.removeAllListeners('SIGINT');
+  process.removeAllListeners('exit');
+
   process.on('SIGINT', () => {
     LogUptime();
     process.kill(process.pid);
@@ -411,17 +438,27 @@ if (global.Fca.Require.FastConfig.AntiGetInfo.AntiGetThreadInfo) {
 }
 
 function isEditedMessage(delta) {
-  // Facebook sends edited messages as NewMessage deltas with specific tags.
-  // Detect all known edit tag patterns to prevent re-triggering commands.
-  const tags = (delta.messageMetadata && delta.messageMetadata.tags) || delta.tags || [];
-  if (!Array.isArray(tags)) return false;
-  return tags.some(t => {
-    const s = String(t).toLowerCase();
-    return s === 'edit' ||
-           s.includes('edit_message') ||
-           s.includes('source:edit') ||
-           s === 'msg_edit';
-  });
+  // Facebook sends edited messages as NewMessage deltas.
+  // Tags live in multiple places depending on FB version — check all of them.
+  const tagSources = [
+    delta.tags,
+    delta.messageMetadata && delta.messageMetadata.tags,
+    delta.data && delta.data.tags,
+  ];
+  for (const tags of tagSources) {
+    if (!Array.isArray(tags)) continue;
+    if (tags.some(t => {
+      const s = String(t).toLowerCase();
+      return s === 'edit' ||
+             s === 'msg_edit' ||
+             s.includes('edit_message') ||
+             s.includes('source:edit') ||
+             s.includes(':edit');
+    })) return true;
+  }
+  // Also catch the requestContext type used in some FCA versions
+  if (delta.requestContext && String(delta.requestContext.type).toUpperCase() === 'EDIT') return true;
+  return false;
 }
 
 function parseDelta(defaultFuncs, api, ctx, globalCallback, {
