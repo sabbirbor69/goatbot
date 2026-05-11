@@ -204,7 +204,7 @@ function createMessageHelper(api, event) {
         let end = null;
         try {
             if (typeof api.sendTypingIndicator === "function") {
-                end = api.sendTypingIndicator(targetThread, () => {}, isGroup);
+                end = api.sendTypingIndicator(true, targetThread, () => {});
             }
         } catch (_) {}
         await new Promise(r => setTimeout(r, typeof ms === "number" ? ms : 2000));

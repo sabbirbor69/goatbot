@@ -8,7 +8,7 @@ async function typeAndDelay(api, threadID, isGroup, ms) {
   if (typeof ms !== "number") ms = 2000;
   try {
     if (typeof api.sendTypingIndicator === "function") {
-      api.sendTypingIndicator(threadID, (err) => {}, !!isGroup);
+      api.sendTypingIndicator(true, threadID, (err) => {});
     }
   } catch (_) {}
   await sleep(ms);
