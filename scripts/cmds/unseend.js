@@ -1,4 +1,3 @@
-const SABBIR = "Ariful Islam Sabbir";
 const fs = require("fs-extra");
 const axios = require("axios");
 const path = require("path");

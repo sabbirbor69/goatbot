@@ -1,6 +1,5 @@
 "use strict";
 
-const SABBIR = "Ariful Islam Sabbir";
 const axios = require("axios");
 
 module.exports.config = {

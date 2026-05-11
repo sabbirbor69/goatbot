@@ -1,4 +1,3 @@
-const SABBIR = "Ariful Islam Sabbir";
 module.exports.config = {
   name: "uns",
   version: "1.0.0",

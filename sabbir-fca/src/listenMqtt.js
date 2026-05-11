@@ -20,6 +20,7 @@ global.Fca.Data.event = new Map();
 const topics = ['/ls_req', '/ls_resp', '/legacy_web', '/webrtc', '/rtc_multi', '/onevc', '/br_sr', '/sr_res', '/t_ms', '/thread_typing', '/orca_typing_notifications', '/notify_disconnect', '/orca_presence', '/inbox', '/mercury', '/messaging_events', '/orca_message_notifications', '/pp', '/webrtc_response'];
 
 let WebSocket_Global;
+let _reconnecting = false;
 
 function buildProxy() {
   const Proxy = new Transform({
@@ -156,9 +157,6 @@ function listenMqtt(defaultFuncs, api, ctx, globalCallback) {
   ctx.mqttClient = new mqtt.Client(() => buildStream(options, new WebSocket(host, options.wsOptions), buildProxy()), options);
   global.mqttClient = ctx.mqttClient;
 
-  // Guard: prevent multiple concurrent reconnect attempts from racing each other
-  let _reconnecting = false;
-
   global.mqttClient.on('error', (err) => {
     log.error('listenMqtt', err);
 
@@ -168,9 +166,7 @@ function listenMqtt(defaultFuncs, api, ctx, globalCallback) {
     try { global.mqttClient.end(true); } catch (_) {}
 
     if (ctx.globalOptions.autoReconnect) {
-      // Delay before reconnecting so Facebook doesn't rate-limit us
       setTimeout(() => {
-        _reconnecting = false;
         getSeqID();
       }, 5000);
     } else {
@@ -188,12 +184,12 @@ function listenMqtt(defaultFuncs, api, ctx, globalCallback) {
     if (global.Fca.Data.StopListening) return;
     _reconnecting = true;
     setTimeout(() => {
-      _reconnecting = false;
       getSeqID();
     }, 5000);
   });
 
   global.mqttClient.on('connect', () => {
+    _reconnecting = false;
     if (!global.Fca.Data.Setup || global.Fca.Data.Setup === undefined) {
       if (global.Fca.Require.FastConfig.RestartMQTT_Minutes !== 0 && global.Fca.Data.StopListening !== true) {
         global.Fca.Data.Setup = true;

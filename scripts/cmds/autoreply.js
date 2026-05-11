@@ -1,4 +1,3 @@
-const SABBIR = "Ariful Islam Sabbir";
 const axios = require("axios");
 
 const CYBERBOT_API = "https://simsimi.cyberbot.top";

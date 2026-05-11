@@ -23,7 +23,7 @@ async function typeAndDelay(api, threadID, isGroup, ms) {
 async function _editApi(api, messageID, newText) {
   if (typeof api.editMessage !== "function") return false;
   try {
-    await api.editMessage(newText, messageID);
+    await api.editMessage(messageID, newText);
     return true;
   } catch (err) {
     return false;

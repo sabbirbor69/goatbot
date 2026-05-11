@@ -1,4 +1,3 @@
-const SABBIR = "Ariful Islam Sabbir";
 const { getName } = require("../../utils/getName.js");
 const { animateSendLines, sleep } = require("../../utils/animation.js");
 

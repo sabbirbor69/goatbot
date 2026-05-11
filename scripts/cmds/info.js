@@ -1,4 +1,3 @@
-const SABBIR = "Ariful Islam Sabbir";
 const moment = require("moment-timezone");
 
 module.exports.config = {

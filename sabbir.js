@@ -201,16 +201,17 @@ function createMessageHelper(api, event) {
     const isGroup = !!event.isGroup;
 
     async function _typeAndWait(targetThread, ms) {
-        let end = null;
         try {
             if (typeof api.sendTypingIndicator === "function") {
-                end = api.sendTypingIndicator(true, targetThread, () => {});
+                api.sendTypingIndicator(true, targetThread, () => {});
             }
         } catch (_) {}
         await new Promise(r => setTimeout(r, typeof ms === "number" ? ms : 2000));
-        if (typeof end === "function") {
-            try { end(() => {}); } catch (_) {}
-        }
+        try {
+            if (typeof api.sendTypingIndicator === "function") {
+                api.sendTypingIndicator(false, targetThread, () => {});
+            }
+        } catch (_) {}
     }
 
     const helper = {
