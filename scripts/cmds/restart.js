@@ -1,71 +1,99 @@
 module.exports.config = {
   name: "restart",
-  version: "2.0.0",
+  version: "5.0.0",
   role: 2,
   credits: "Ariful Islam Sabbir",
-  description: "Bot restart করো — বিস্তারিত status দেখিয়ে restart",
-  usePrefix: true,
+  description: "Animated Restart System",
   category: "Admin",
-  usages: "restart",
-  cooldowns: 10
+  cooldowns: 5
 };
 
-function fmtUptime(sec) {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = Math.floor(sec % 60);
-  const parts = [];
-  if (h > 0) parts.push(`${h}h`);
-  if (m > 0) parts.push(`${m}m`);
-  parts.push(`${s}s`);
-  return parts.join(" ");
+function sleep(ms) {
+  return new Promise(resolve =>
+    setTimeout(resolve, ms)
+  );
 }
 
-function fmtMem(bytes) {
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
+module.exports.onStart = async function ({
+  api,
+  event
+}) {
 
-function mqttStatus() {
-  try {
-    const client = global.mqttClient || global.Fca?.Data?.mqttClient;
-    if (!client) return "❓ Unknown";
-    if (client.connected) return "✅ Connected";
-    if (client.reconnecting) return "🔄 Reconnecting";
-    return "❌ Disconnected";
-  } catch (_) { return "❓ Unknown"; }
-}
+  const threadID = event.threadID;
 
-module.exports.onStart = async function ({ api, event, message }) {
-  const { senderID, threadID, messageID } = event;
-  const adminList = (global.GoatBot?.config?.adminBot || global.GoatBot?.config?.adminID || []).map(String);
+  const start = await api.sendMessage(
+`╔════════════════════╗
+║   🔄 RESTART BOT   ║
+╚════════════════════╝
 
-  if (!adminList.includes(String(senderID))) {
-    return message.reply("⛔ শুধুমাত্র Bot Admin এই command ব্যবহার করতে পারবে।");
-  }
+⚡ Initializing Restart...
+`,
+    threadID
+  );
 
-  const mem = process.memoryUsage();
-  const uptimeSec = process.uptime();
-  const cmdCount = global.GoatBot?.commands?.size || 0;
-  const evtCount = global.GoatBot?.eventCommands?.size || 0;
-  const threadCount = global.db?.allThreadData?.length || 0;
-  const userCount = global.db?.allUserData?.length || 0;
-  const prefix = global.GoatBot?.config?.prefix || "/";
+  const frames = [
 
-  const lines = [
-    "╔══ 🔄 BOT RESTARTING ══╗",
-    `│ ⏱ Uptime   : ${fmtUptime(uptimeSec)}`,
-    `│ 🧠 Memory   : ${fmtMem(mem.heapUsed)} / ${fmtMem(mem.heapTotal)}`,
-    `│ 📦 Commands : ${cmdCount}  │  🎉 Events: ${evtCount}`,
-    `│ 💬 Threads  : ${threadCount}  │  👥 Users: ${userCount}`,
-    `│ 🔑 Prefix   : ${prefix}`,
-    `│ 📡 MQTT     : ${mqttStatus()}`,
-    "│",
-    "│ ⚡ Bot 10-15 সেকেন্ডের মধ্যে",
-    "│    আবার online হয়ে যাবে।",
-    "╚══════════════════════╝"
+`╔════════════════════╗
+║   🔄 RESTART BOT   ║
+╚════════════════════╝
+
+░░░░░░░░░░ 0%
+
+⚡ Initializing Restart...`,
+
+`╔════════════════════╗
+║   🔄 RESTART BOT   ║
+╚════════════════════╝
+
+███░░░░░░░ 25%
+
+💾 Saving session...`,
+
+`╔════════════════════╗
+║   🔄 RESTART BOT   ║
+╚════════════════════╝
+
+█████░░░░░ 50%
+
+🧠 Clearing cache...`,
+
+`╔════════════════════╗
+║   🔄 RESTART BOT   ║
+╚════════════════════╝
+
+████████░░ 75%
+
+📡 Reconnecting MQTT...`,
+
+`╔════════════════════╗
+║   🔄 RESTART BOT   ║
+╚════════════════════╝
+
+██████████ 100%
+
+✅ BOT RESTARTED SUCCESSFULLY
+📡 MQTT Connected
+🤖 SABBIR CHAT BOT ONLINE`
   ];
 
-  await message.reply(lines.join("\n"));
+  for (const frame of frames) {
 
-  setTimeout(() => process.exit(2), 2000);
+    await sleep(1200);
+
+    try {
+
+      await api.editMessage(
+        start.messageID,
+        frame
+      );
+
+    } catch (e) {
+      console.log(e);
+    }
+  }
+
+  setTimeout(() => {
+    process.exit(2);
+  }, 5000);
+
 };
