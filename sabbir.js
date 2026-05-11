@@ -356,15 +356,16 @@ global.temp = {
         require(`./utils/login.js`);
 })();
 if (!process.env.BOT_NO_HTTP) {
-  const express = require('express');
+  const express = require("express");
   const app = express();
-  const port = process.env.PORT || 5000;
 
-  app.get('/', (req, res) => {
-    res.send('Bot is Alive!');
+  const PORT = process.env.PORT || 8080;
+
+  app.get("/", (req, res) => {
+    res.status(200).send("🟢 Bot is running!");
   });
 
-  app.listen(port, '0.0.0.0', () => {
-    console.log(`Server is running on port ${port}`);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`🌐 Server running on port ${PORT}`);
   });
 }
