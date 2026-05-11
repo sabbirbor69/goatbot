@@ -52,8 +52,8 @@ module.exports = async (api, event, logger, getText) => {
 
 					// typing ON
 					try {
-						if (global.mqttClient) {
-							global.mqttClient.publish(
+						if (api.ctx?.mqttClient) {
+							api.ctx.mqttClient.publish(
 								"/thread_typing",
 								JSON.stringify({
 									state: 1,
@@ -65,7 +65,7 @@ module.exports = async (api, event, logger, getText) => {
 					}
 					catch (_) {}
 
-					// typing visible delay
+					// typing delay
 					await new Promise(resolve =>
 						setTimeout(resolve, 2000)
 					);
@@ -111,8 +111,8 @@ module.exports = async (api, event, logger, getText) => {
 
 					// typing OFF
 					try {
-						if (global.mqttClient) {
-							global.mqttClient.publish(
+						if (api.ctx?.mqttClient) {
+							api.ctx.mqttClient.publish(
 								"/thread_typing",
 								JSON.stringify({
 									state: 0,
@@ -132,8 +132,8 @@ module.exports = async (api, event, logger, getText) => {
 
 					// typing OFF on error
 					try {
-						if (global.mqttClient) {
-							global.mqttClient.publish(
+						if (api.ctx?.mqttClient) {
+							api.ctx.mqttClient.publish(
 								"/thread_typing",
 								JSON.stringify({
 									state: 0,
