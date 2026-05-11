@@ -5,17 +5,19 @@ module.exports = async (api, event, logger, getText) => {
 	try {
 		const commandPath = path.join(__dirname, "../scripts/cmds");
 
+		// command folder check
 		if (!fs.existsSync(commandPath)) return;
 
 		const body = (event.body || "").trim();
 
+		// empty message ignore
 		if (!body) return;
 
 		const prefix = global.GoatBot?.config?.prefix || "/";
 
 		let commandName = body.split(/\s+/)[0].toLowerCase();
 
-		// prefix remove
+		// remove prefix
 		if (commandName.startsWith(prefix)) {
 			commandName = commandName.slice(prefix.length);
 		}
@@ -27,41 +29,72 @@ module.exports = async (api, event, logger, getText) => {
 			.filter(file => file.endsWith(".js"));
 
 		for (const file of commandFiles) {
-			delete require.cache[require.resolve(path.join(commandPath, file))];
+
+			// hot reload
+			delete require.cache[
+				require.resolve(path.join(commandPath, file))
+			];
 
 			const command = require(path.join(commandPath, file));
 
-			if (!command.config || !command.config.name) continue;
+			// invalid command skip
+			if (!command.config || !command.config.name)
+				continue;
 
 			const cmdName = command.config.name.toLowerCase();
 
-			// normal command
+			// command matched
 			if (cmdName === commandName) {
 
 				// noPrefix support
 				if (
 					!body.startsWith(prefix) &&
 					command.config.noPrefix !== true
-				) return;
+				) {
+					return;
+				}
 
 				try {
+
+					// typing indicator ON
+					if (typeof api.sendTypingIndicator === "function") {
+						api.sendTypingIndicator(
+							event.threadID,
+							true
+						);
+					}
+
+					// GoatBot style
 					if (typeof command.onStart === "function") {
-						return await command.onStart({
+
+						await command.onStart({
 							api,
 							event,
 							args,
 							logger,
 							getText,
+
 							message: {
 								reply: (msg) =>
-									api.sendMessage(msg, event.threadID, event.messageID)
+									api.sendMessage(
+										msg,
+										event.threadID,
+										event.messageID
+									),
+
+								send: (msg) =>
+									api.sendMessage(
+										msg,
+										event.threadID
+									)
 							}
 						});
 					}
 
-					// mirai style fallback
-					if (typeof command.run === "function") {
-						return await command.run({
+					// Mirai style fallback
+					else if (typeof command.run === "function") {
+
+						await command.run({
 							api,
 							event,
 							args,
@@ -69,13 +102,39 @@ module.exports = async (api, event, logger, getText) => {
 							getText
 						});
 					}
+
+					// typing indicator OFF
+					if (typeof api.sendTypingIndicator === "function") {
+						api.sendTypingIndicator(
+							event.threadID,
+							false
+						);
+					}
+
+					return;
 				}
 				catch (e) {
+
 					console.log(e);
+
+					// typing OFF on error
+					if (typeof api.sendTypingIndicator === "function") {
+						api.sendTypingIndicator(
+							event.threadID,
+							false
+						);
+					}
+
 					logger?.(
 						getText?.("system.commandError", file) ||
 						`Command Error: ${file}`,
 						"ERROR"
+					);
+
+					api.sendMessage(
+						"❌ Command Error!",
+						event.threadID,
+						event.messageID
 					);
 				}
 			}
