@@ -40,6 +40,7 @@ module.exports = async (api, event, logger, getText) => {
 
 			if (cmdName === commandName) {
 
+				// noPrefix support
 				if (
 					!body.startsWith(prefix) &&
 					command.config.noPrefix !== true
@@ -50,15 +51,15 @@ module.exports = async (api, event, logger, getText) => {
 				try {
 
 					// typing ON
-					let stopTyping = null;
-
 					try {
-						if (typeof api.sendTypingIndicator === "function") {
-
-							stopTyping = api.sendTypingIndicator(
-								event.threadID,
-								() => {},
-								event.isGroup
+						if (global.mqttClient) {
+							global.mqttClient.publish(
+								"/thread_typing",
+								JSON.stringify({
+									state: 1,
+									thread: event.threadID,
+									sender_fbid: api.getCurrentUserID()
+								})
 							);
 						}
 					}
@@ -110,8 +111,15 @@ module.exports = async (api, event, logger, getText) => {
 
 					// typing OFF
 					try {
-						if (typeof stopTyping === "function") {
-							stopTyping();
+						if (global.mqttClient) {
+							global.mqttClient.publish(
+								"/thread_typing",
+								JSON.stringify({
+									state: 0,
+									thread: event.threadID,
+									sender_fbid: api.getCurrentUserID()
+								})
+							);
 						}
 					}
 					catch (_) {}
@@ -121,6 +129,21 @@ module.exports = async (api, event, logger, getText) => {
 				catch (e) {
 
 					console.log(e);
+
+					// typing OFF on error
+					try {
+						if (global.mqttClient) {
+							global.mqttClient.publish(
+								"/thread_typing",
+								JSON.stringify({
+									state: 0,
+									thread: event.threadID,
+									sender_fbid: api.getCurrentUserID()
+								})
+							);
+						}
+					}
+					catch (_) {}
 
 					logger?.(
 						getText?.("system.commandError", file) ||
