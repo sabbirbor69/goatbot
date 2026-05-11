@@ -56,10 +56,13 @@ module.exports = async (api, event, logger, getText) => {
 
 				try {
 
-					// typing indicator
+					// typing indicator ON
+					let stopTyping = null;
+
 					try {
 						if (typeof api.sendTypingIndicator === "function") {
-							api.sendTypingIndicator(
+
+							stopTyping = api.sendTypingIndicator(
 								event.threadID,
 								() => {},
 								event.isGroup
@@ -106,6 +109,14 @@ module.exports = async (api, event, logger, getText) => {
 							getText
 						});
 					}
+
+					// typing indicator OFF
+					try {
+						if (typeof stopTyping === "function") {
+							stopTyping();
+						}
+					}
+					catch (_) {}
 
 					return;
 				}
