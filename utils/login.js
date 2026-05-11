@@ -16,6 +16,14 @@ const fs = defaultRequire("fs-extra");
 const toptp = defaultRequire("totp-generator");
 const fcaModule = defaultRequire(`${process.cwd()}/sabbir-fca`);
 const login = typeof fcaModule === 'function' ? fcaModule : fcaModule.login;
+api.setOptions({
+        listenEvents: true,
+        selfListen: false,
+        updatePresence: false,
+        forceLogin: true,
+        autoMarkDelivery: true,
+        autoMarkRead: true
+});
 const qr = new (defaultRequire("qrcode-reader"));
 const Canvas = defaultRequire("canvas");
 const https = defaultRequire("https");
