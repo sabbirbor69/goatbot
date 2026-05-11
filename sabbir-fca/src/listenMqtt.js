@@ -145,7 +145,7 @@ function listenMqtt(defaultFuncs, api, ctx, globalCallback) {
     },
     keepalive: 60,
     reschedulePings: true,
-    reconnectPeriod: 3,
+    reconnectPeriod: 5000,
   };
 
   if (ctx.globalOptions.proxy !== undefined) {
@@ -410,11 +410,44 @@ if (global.Fca.Require.FastConfig.AntiGetInfo.AntiGetThreadInfo) {
     }, 30 * 1000);
 }
 
+function isEditedMessage(delta) {
+  // Facebook sends edited messages as NewMessage deltas with specific tags.
+  // Detect all known edit tag patterns to prevent re-triggering commands.
+  const tags = (delta.messageMetadata && delta.messageMetadata.tags) || delta.tags || [];
+  if (!Array.isArray(tags)) return false;
+  return tags.some(t => {
+    const s = String(t).toLowerCase();
+    return s === 'edit' ||
+           s.includes('edit_message') ||
+           s.includes('source:edit') ||
+           s === 'msg_edit';
+  });
+}
+
 function parseDelta(defaultFuncs, api, ctx, globalCallback, {
   delta
 }) {
   if (delta.class === 'NewMessage') {
     if (ctx.globalOptions.pageID && ctx.globalOptions.pageID !== delta.queue) return;
+
+    // Detect edited messages — they arrive as NewMessage but must NOT re-trigger
+    // command handlers (that causes the animation/command loop). Emit them as
+    // a distinct 'message_edit' event so listeners that care can handle them.
+    if (isEditedMessage(delta)) {
+      if (!ctx.globalOptions.listenEvents) return;
+      let fmtMsg;
+      try {
+        fmtMsg = utils.formatDeltaMessage(delta);
+      } catch (err) {
+        return log.error('Minor Error', err);
+      }
+      if (fmtMsg) {
+        fmtMsg.type = 'message_edit';
+        fmtMsg.isEdited = true;
+        globalCallback(null, fmtMsg);
+      }
+      return;
+    }
 
     const resolveAttachmentUrl = (i) => {
       if (!delta.attachments || i === delta.attachments.length || utils.getType(delta.attachments) !== 'Array') {
