@@ -2,6 +2,7 @@ const fs = require("fs-extra");
 const path = require("path");
 
 module.exports = async (api, event, logger, getText) => {
+
 	try {
 
 		const commandPath = path.join(
@@ -36,7 +37,9 @@ module.exports = async (api, event, logger, getText) => {
 
 		const commandFiles = fs
 			.readdirSync(commandPath)
-			.filter(file => file.endsWith(".js"));
+			.filter(file =>
+				file.endsWith(".js")
+			);
 
 		for (const file of commandFiles) {
 
@@ -76,14 +79,16 @@ module.exports = async (api, event, logger, getText) => {
 					// ====================
 
 					try {
-						api.sendTypingIndicator(
-							event.threadID,
-							true
+
+						await api.sendTypingIndicator(
+							true,
+							event.threadID
 						);
+
 					}
 					catch (_) {}
 
-					// typing delay
+					// typing visible delay
 					await new Promise(resolve =>
 						setTimeout(resolve, 2000)
 					);
@@ -98,6 +103,7 @@ module.exports = async (api, event, logger, getText) => {
 					) {
 
 						await command.onStart({
+
 							api,
 							event,
 							args,
@@ -120,26 +126,6 @@ module.exports = async (api, event, logger, getText) => {
 									)
 							}
 						});
-
-					}
-
-					// ====================
-					// MIRAI STYLE
-					// ====================
-
-					else if (
-						typeof command.run ===
-						"function"
-					) {
-
-						await command.run({
-							api,
-							event,
-							args,
-							logger,
-							getText
-						});
-
 					}
 
 					// ====================
@@ -147,10 +133,12 @@ module.exports = async (api, event, logger, getText) => {
 					// ====================
 
 					try {
-						api.sendTypingIndicator(
-							event.threadID,
-							false
+
+						await api.sendTypingIndicator(
+							false,
+							event.threadID
 						);
+
 					}
 					catch (_) {}
 
@@ -163,24 +151,31 @@ module.exports = async (api, event, logger, getText) => {
 
 					// typing OFF on error
 					try {
-						api.sendTypingIndicator(
-							event.threadID,
-							false
+
+						await api.sendTypingIndicator(
+							false,
+							event.threadID
 						);
+
 					}
 					catch (_) {}
 
 					logger?.(
+
 						getText?.(
 							"system.commandError",
 							file
 						) ||
+
 						`Command Error: ${file}`,
+
 						"ERROR"
 					);
 
 					api.sendMessage(
+
 						"❌ Command Error!",
+
 						event.threadID,
 						event.messageID
 					);
