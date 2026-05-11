@@ -5,19 +5,31 @@ module.exports = (api, threadModel, userModel, dashBoardModel, globalModel, user
         const handlerEvents = require(process.env.NODE_ENV == 'development' ? "./handlerEvents.dev.js" : "./handlerEvents.js")(api, threadModel, userModel, dashBoardModel, globalModel, usersData, threadsData, dashBoardData, globalData);
 
         return async function (event) {
-                // Anti-Inbox সেটিংস চেক
                 if (
                         global.GoatBot.config.antiInbox == true &&
                         (event.senderID == event.threadID || event.userID == event.senderID || event.isGroup == false)
                 )
                         return;
 
+                // Update thread/user cache for all events that carry threadID + isGroup info.
+                // This ensures sendTypingIndicator and sendMessage always know the thread type
+                // even before any message has arrived from that thread.
+                if (event.threadID && typeof event.isGroup === "boolean") {
+                        try {
+                                const tid = String(event.threadID);
+                                if (event.isGroup) {
+                                        if (!global.Fca.isThread.includes(tid)) global.Fca.isThread.push(tid);
+                                } else {
+                                        if (!global.Fca.isUser.includes(tid)) global.Fca.isUser.push(tid);
+                                }
+                        } catch (_) {}
+                }
+
                 const message = createFuncMessage(api, event);
 
-                // ডাটাবেজ চেক
                 await handlerCheckDB(usersData, threadsData, event);
                 const handlerChat = await handlerEvents(event, message);
-                
+
                 if (!handlerChat)
                         return;
 
@@ -29,50 +41,49 @@ module.exports = (api, threadModel, userModel, dashBoardModel, globalModel, user
 
                 onAnyEvent();
 
-                // --- Typing indicator section ---
-                // Fires on every incoming message and message_reply
-                if (event.type == "message" || event.type == "message_reply") {
+                // Show typing indicator before processing messages, then always turn it off
+                const isMsg = event.type == "message" || event.type == "message_reply";
+                if (isMsg) {
                         try {
-                                        api.sendTypingIndicator(true, event.threadID, (err) => {
-                                        if (err) console.error("Typing Error:", err);
-                                });
-
-                                // ২ সেকেন্ড ডট দেখানোর জন্য ওয়েট করবে
-                                await new Promise(resolve => setTimeout(resolve, 2000));
-                        } catch (e) {
-                                // টাইপিং ফেল করলে বট যাতে থেমে না যায়
-                        }
+                                await api.sendTypingIndicator(true, event.threadID, () => {});
+                                await new Promise(resolve => setTimeout(resolve, 1500));
+                        } catch (_) {}
                 }
-                // ------------------------------------
 
-                // ইভেন্ট অনুযায়ী কমান্ড এক্সিকিউশন
-                switch (event.type) {
-                        case "message":
-                        case "message_reply":
-                        case "message_unsend":
-                                onFirstChat();
-                                onChat();
-                                onStart();
-                                onReply();
-                                break;
-                        case "event":
-                                handlerEvent();
-                                onEvent();
-                                break;
-                        case "message_reaction":
-                                onReaction();
-                                break;
-                        case "typ":
-                                typ();
-                                break;
-                        case "presence":
-                                presence();
-                                break;
-                        case "read_receipt":
-                                read_receipt();
-                                break;
-                        default:
-                                break;
+                try {
+                        switch (event.type) {
+                                case "message":
+                                case "message_reply":
+                                case "message_unsend":
+                                        onFirstChat();
+                                        onChat();
+                                        onStart();
+                                        onReply();
+                                        break;
+                                case "event":
+                                        handlerEvent();
+                                        onEvent();
+                                        break;
+                                case "message_reaction":
+                                        onReaction();
+                                        break;
+                                case "typ":
+                                        typ();
+                                        break;
+                                case "presence":
+                                        presence();
+                                        break;
+                                case "read_receipt":
+                                        read_receipt();
+                                        break;
+                                default:
+                                        break;
+                        }
+                } finally {
+                        // Always turn off typing after commands finish (or fail)
+                        if (isMsg) {
+                                try { api.sendTypingIndicator(false, event.threadID, () => {}); } catch (_) {}
+                        }
                 }
         };
 };

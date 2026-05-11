@@ -1,13 +1,12 @@
 const SABBIR = "Ariful Islam Sabbir";
 const { getName } = require("../../utils/getName.js");
-const { animateSendLines } = require("../../utils/animation.js");
 
 module.exports.config = {
   name: "groupevents",
-  version: "1.2.0",
+  version: "1.3.0",
   role: 0,
   credits: "Ariful Islam Sabbir",
-  description: "Group এর সব event animation style এ announce করে এবং bot memory update করে",
+  description: "Announces all group events and refreshes bot thread memory",
   category: "Events",
   countDown: 0
 };
@@ -43,33 +42,37 @@ async function refreshThreadMemory(api, threadID, threadsData) {
         global.db.allThreadData.push({ threadID: String(threadID), ...update, data: {}, settings: {} });
       }
     }
+
+    // Also update isThread cache so typing indicator works correctly
+    try {
+      const tid = String(threadID);
+      if (global.Fca && Array.isArray(global.Fca.isThread) && !global.Fca.isThread.includes(tid)) {
+        global.Fca.isThread.push(tid);
+      }
+    } catch (_) {}
   } catch (e) {}
 }
 
 async function announce(api, threadID, lines) {
-  return animateSendLines(api, threadID, lines, {
-    initialBody: "✨ ...",
-    perLineMs: 180,
-    isGroup: true,
-    showTyping: true,
-    typingMs: 1000
-  });
+  try {
+    await api.sendMessage({ body: lines.join("\n") }, threadID);
+  } catch (_) {}
 }
 
 module.exports.onStart = async function ({ api, event, threadsData }) {
   const { threadID, logMessageType, logMessageData, author } = event;
   if (!logMessageType) return;
 
-  const authorName = author ? await getName(api, author, "কেউ একজন") : "কেউ একজন";
+  const authorName = author ? await getName(api, author, "Someone") : "Someone";
   let lines = null;
 
   switch (logMessageType) {
     case "log:thread-name": {
-      const newName = (logMessageData && logMessageData.name) || "নতুন নাম";
+      const newName = (logMessageData && logMessageData.name) || "New Name";
       lines = [
-        "╔══ ✏️ NAME CHANGED ✏️ ══╗",
-        `👤 কে করেছে: ${authorName}`,
-        `📝 নতুন নাম: ${newName}`,
+        "╔══ ✏️ GROUP NAME CHANGED ══╗",
+        `👤 By: ${authorName}`,
+        `📝 New Name: ${newName}`,
         "╚══════════════════════╝"
       ];
       await refreshThreadMemory(api, threadID, threadsData);
@@ -79,9 +82,9 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
     case "log:thread-icon": {
       const icon = (logMessageData && logMessageData.thread_icon) || "🆕";
       lines = [
-        "╔══ 🎭 EMOJI CHANGED 🎭 ══╗",
-        `👤 কে করেছে: ${authorName}`,
-        `✨ নতুন ইমোজি: ${icon}`,
+        "╔══ 🎭 GROUP EMOJI CHANGED ══╗",
+        `👤 By: ${authorName}`,
+        `✨ New Emoji: ${icon}`,
         "╚══════════════════════╝"
       ];
       await refreshThreadMemory(api, threadID, threadsData);
@@ -89,11 +92,11 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
     }
 
     case "log:thread-color": {
-      const color = (logMessageData && (logMessageData.theme_color || logMessageData.color)) || "নতুন";
+      const color = (logMessageData && (logMessageData.theme_color || logMessageData.color)) || "New";
       lines = [
-        "╔══ 🎨 THEME CHANGED 🎨 ══╗",
-        `👤 কে করেছে: ${authorName}`,
-        `🌈 নতুন থিম: ${color}`,
+        "╔══ 🎨 THEME CHANGED ══╗",
+        `👤 By: ${authorName}`,
+        `🌈 New Theme: ${color}`,
         "╚══════════════════════╝"
       ];
       await refreshThreadMemory(api, threadID, threadsData);
@@ -107,21 +110,21 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
       if (targetID === botID) return;
 
       const newNick = (logMessageData && logMessageData.nickname) || null;
-      const targetName = await getName(api, targetID, "একজন member");
+      const targetName = await getName(api, targetID, "A member");
 
       if (newNick) {
         lines = [
-          "╔══ 📛 NICKNAME UPDATED 📛 ══╗",
-          `👤 কে করেছে: ${authorName}`,
-          `🙍 কার: ${targetName}`,
-          `✏️ নতুন nickname: ${newNick}`,
+          "╔══ 📛 NICKNAME UPDATED ══╗",
+          `👤 By: ${authorName}`,
+          `🙍 Who: ${targetName}`,
+          `✏️ New Nickname: ${newNick}`,
           "╚══════════════════════╝"
         ];
       } else {
         lines = [
-          "╔══ 📛 NICKNAME REMOVED 📛 ══╗",
-          `👤 কে করেছে: ${authorName}`,
-          `🙍 কার: ${targetName}`,
+          "╔══ 📛 NICKNAME REMOVED ══╗",
+          `👤 By: ${authorName}`,
+          `🙍 Who: ${targetName}`,
           "╚══════════════════════╝"
         ];
       }
@@ -131,20 +134,20 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
     case "log:thread-admins": {
       const targetID = logMessageData && logMessageData.target_id;
       const adminEvent = logMessageData && logMessageData.ADMIN_EVENT;
-      const targetName = await getName(api, targetID, "একজন member");
+      const targetName = await getName(api, targetID, "A member");
 
       if (adminEvent === "add_admin") {
         lines = [
-          "╔══ 🛡️ NEW ADMIN 🛡️ ══╗",
-          `👤 কে করেছে: ${authorName}`,
-          `⭐ নতুন Admin: ${targetName}`,
+          "╔══ 🛡️ NEW ADMIN ══╗",
+          `👤 By: ${authorName}`,
+          `⭐ New Admin: ${targetName}`,
           "╚══════════════════════╝"
         ];
       } else if (adminEvent === "remove_admin") {
         lines = [
-          "╔══ 🛡️ ADMIN REMOVED 🛡️ ══╗",
-          `👤 কে করেছে: ${authorName}`,
-          `❌ Remove হয়েছে: ${targetName}`,
+          "╔══ 🛡️ ADMIN REMOVED ══╗",
+          `👤 By: ${authorName}`,
+          `❌ Removed: ${targetName}`,
           "╚══════════════════════╝"
         ];
       }
@@ -155,20 +158,20 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
     case "log:thread-approval-mode": {
       const enabled = (logMessageData && (logMessageData.approval_mode === 1 || logMessageData.approval_mode === "1"));
       lines = [
-        "╔══ 🔐 APPROVAL MODE 🔐 ══╗",
-        `👤 কে করেছে: ${authorName}`,
-        `📌 অবস্থা: ${enabled ? "✅ চালু" : "❌ বন্ধ"}`,
+        "╔══ 🔐 APPROVAL MODE ══╗",
+        `👤 By: ${authorName}`,
+        `📌 Status: ${enabled ? "✅ Enabled" : "❌ Disabled"}`,
         "╚══════════════════════╝"
       ];
       break;
     }
 
     case "log:thread-quick-reaction": {
-      const reaction = (logMessageData && logMessageData.thread_quick_reaction) || "নতুন";
+      const reaction = (logMessageData && logMessageData.thread_quick_reaction) || "New";
       lines = [
-        "╔══ ⚡ QUICK REACTION ⚡ ══╗",
-        `👤 কে করেছে: ${authorName}`,
-        `💬 নতুন reaction: ${reaction}`,
+        "╔══ ⚡ QUICK REACTION CHANGED ══╗",
+        `👤 By: ${authorName}`,
+        `💬 New Reaction: ${reaction}`,
         "╚══════════════════════╝"
       ];
       break;
@@ -185,6 +188,6 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
   }
 
   if (lines && lines.length > 0) {
-    try { await announce(api, threadID, lines); } catch (_) {}
+    await announce(api, threadID, lines);
   }
 };
