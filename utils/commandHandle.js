@@ -56,13 +56,17 @@ module.exports = async (api, event, logger, getText) => {
 
 				try {
 
-					// typing indicator ON
-					if (typeof api.sendTypingIndicator === "function") {
-						api.sendTypingIndicator(
-							event.threadID,
-							true
-						);
+					// typing indicator
+					try {
+						if (typeof api.sendTypingIndicator === "function") {
+							api.sendTypingIndicator(
+								event.threadID,
+								() => {},
+								event.isGroup
+							);
+						}
 					}
+					catch (_) {}
 
 					// GoatBot style
 					if (typeof command.onStart === "function") {
@@ -103,27 +107,11 @@ module.exports = async (api, event, logger, getText) => {
 						});
 					}
 
-					// typing indicator OFF
-					if (typeof api.sendTypingIndicator === "function") {
-						api.sendTypingIndicator(
-							event.threadID,
-							false
-						);
-					}
-
 					return;
 				}
 				catch (e) {
 
 					console.log(e);
-
-					// typing OFF on error
-					if (typeof api.sendTypingIndicator === "function") {
-						api.sendTypingIndicator(
-							event.threadID,
-							false
-						);
-					}
 
 					logger?.(
 						getText?.("system.commandError", file) ||
