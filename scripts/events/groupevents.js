@@ -2,7 +2,7 @@ const { getName } = require("../../utils/getName.js");
 
 module.exports.config = {
   name: "groupevents",
-  version: "1.3.0",
+  version: "1.4.0",
   role: 0,
   credits: "Ariful Islam Sabbir",
   description: "Announces all group events and refreshes bot thread memory",
@@ -10,14 +10,50 @@ module.exports.config = {
   countDown: 0
 };
 
+function patchAdminInMemory(threadID, targetID, adminEvent) {
+  try {
+    if (!targetID || !global.db || !Array.isArray(global.db.allThreadData)) return;
+    const thread = global.db.allThreadData.find(t => String(t.threadID) === String(threadID));
+    if (!thread) return;
+    if (!Array.isArray(thread.adminIDs)) thread.adminIDs = [];
+    const id = String(targetID);
+    if (adminEvent === "add_admin") {
+      if (!thread.adminIDs.some(a => String(a.id || a) === id))
+        thread.adminIDs.push(id);
+    } else if (adminEvent === "remove_admin") {
+      thread.adminIDs = thread.adminIDs.filter(a => String(a.id || a) !== id);
+    }
+  } catch (_) {}
+}
+
+function patchMembersInMemory(threadID, addedIDs, removedID) {
+  try {
+    if (!global.db || !Array.isArray(global.db.allThreadData)) return;
+    const thread = global.db.allThreadData.find(t => String(t.threadID) === String(threadID));
+    if (!thread) return;
+    if (!Array.isArray(thread.members)) thread.members = [];
+    if (addedIDs && addedIDs.length > 0) {
+      for (const uid of addedIDs) {
+        const id = String(uid);
+        if (!thread.members.includes(id)) thread.members.push(id);
+      }
+      thread.memberCount = thread.members.length;
+    }
+    if (removedID) {
+      const id = String(removedID);
+      thread.members = thread.members.filter(m => String(m) !== id);
+      thread.memberCount = thread.members.length;
+      thread.adminIDs = (thread.adminIDs || []).filter(a => String(a.id || a) !== id);
+    }
+  } catch (_) {}
+}
+
 async function refreshThreadMemory(api, threadID, threadsData) {
   try {
     const info = await api.getThreadInfo(threadID);
     if (!info) return;
-
     const adminIDs = (info.adminIDs || []).map(a => (a && a.id) ? String(a.id) : String(a));
     const participantIDs = (info.participantIDs || []).map(String);
-
     const update = {
       threadName: info.threadName || info.name || "",
       memberCount: participantIDs.length,
@@ -28,11 +64,9 @@ async function refreshThreadMemory(api, threadID, threadsData) {
       imageSrc: info.imageSrc || "",
       isGroup: info.isGroup !== false
     };
-
     if (threadsData && typeof threadsData.refreshInfo === "function") {
       await threadsData.refreshInfo(threadID, update);
     }
-
     if (global.db && Array.isArray(global.db.allThreadData)) {
       const idx = global.db.allThreadData.findIndex(t => String(t.threadID) === String(threadID));
       if (idx > -1) {
@@ -41,15 +75,12 @@ async function refreshThreadMemory(api, threadID, threadsData) {
         global.db.allThreadData.push({ threadID: String(threadID), ...update, data: {}, settings: {} });
       }
     }
-
-    // Also update isThread cache so typing indicator works correctly
     try {
       const tid = String(threadID);
-      if (global.Fca && Array.isArray(global.Fca.isThread) && !global.Fca.isThread.includes(tid)) {
+      if (global.Fca && Array.isArray(global.Fca.isThread) && !global.Fca.isThread.includes(tid))
         global.Fca.isThread.push(tid);
-      }
     } catch (_) {}
-  } catch (e) {}
+  } catch (_) {}
 }
 
 async function announce(api, threadID, lines) {
@@ -66,6 +97,25 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
   let lines = null;
 
   switch (logMessageType) {
+
+    case "log:subscribe": {
+      const addedIDs = (logMessageData && logMessageData.addedParticipants || [])
+        .map(p => String(p.userFbId || p.userId || p.id || "").replace(/^fbid:/, ""))
+        .filter(Boolean);
+      patchMembersInMemory(threadID, addedIDs, null);
+      refreshThreadMemory(api, threadID, threadsData).catch(() => {});
+      return;
+    }
+
+    case "log:unsubscribe": {
+      const removedID = logMessageData &&
+        String(logMessageData.leftParticipantFbId || logMessageData.leftParticipantUserId || "")
+          .replace(/^fbid:/, "");
+      if (removedID) patchMembersInMemory(threadID, null, removedID);
+      refreshThreadMemory(api, threadID, threadsData).catch(() => {});
+      return;
+    }
+
     case "log:thread-name": {
       const newName = (logMessageData && logMessageData.name) || "New Name";
       lines = [
@@ -74,7 +124,11 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
         `📝 New Name: ${newName}`,
         "╚══════════════════════╝"
       ];
-      await refreshThreadMemory(api, threadID, threadsData);
+      try {
+        const thread = global.db.allThreadData.find(t => String(t.threadID) === String(threadID));
+        if (thread) thread.threadName = newName;
+      } catch (_) {}
+      refreshThreadMemory(api, threadID, threadsData).catch(() => {});
       break;
     }
 
@@ -86,7 +140,7 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
         `✨ New Emoji: ${icon}`,
         "╚══════════════════════╝"
       ];
-      await refreshThreadMemory(api, threadID, threadsData);
+      refreshThreadMemory(api, threadID, threadsData).catch(() => {});
       break;
     }
 
@@ -98,19 +152,17 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
         `🌈 New Theme: ${color}`,
         "╚══════════════════════╝"
       ];
-      await refreshThreadMemory(api, threadID, threadsData);
+      refreshThreadMemory(api, threadID, threadsData).catch(() => {});
       break;
     }
 
     case "log:user-nickname": {
       const targetID = String((logMessageData && (logMessageData.participant_id || logMessageData.target)) || "");
       const botID = String(api.getCurrentUserID());
-      await refreshThreadMemory(api, threadID, threadsData);
+      refreshThreadMemory(api, threadID, threadsData).catch(() => {});
       if (targetID === botID) return;
-
       const newNick = (logMessageData && logMessageData.nickname) || null;
       const targetName = await getName(api, targetID, "A member");
-
       if (newNick) {
         lines = [
           "╔══ 📛 NICKNAME UPDATED ══╗",
@@ -131,10 +183,15 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
     }
 
     case "log:thread-admins": {
-      const targetID = logMessageData && logMessageData.target_id;
-      const adminEvent = logMessageData && logMessageData.ADMIN_EVENT;
-      const targetName = await getName(api, targetID, "A member");
+      const targetID = String(
+        (logMessageData && (logMessageData.TARGET_ID || logMessageData.target_id || logMessageData.targetId || logMessageData.target)) || ""
+      ).replace(/^fbid:/, "");
+      const adminEvent = logMessageData && (logMessageData.ADMIN_EVENT || logMessageData.admin_event);
 
+      patchAdminInMemory(threadID, targetID, adminEvent);
+      refreshThreadMemory(api, threadID, threadsData).catch(() => {});
+
+      const targetName = targetID ? await getName(api, targetID, "A member") : "A member";
       if (adminEvent === "add_admin") {
         lines = [
           "╔══ 🛡️ NEW ADMIN ══╗",
@@ -150,7 +207,6 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
           "╚══════════════════════╝"
         ];
       }
-      await refreshThreadMemory(api, threadID, threadsData);
       break;
     }
 
@@ -174,12 +230,6 @@ module.exports.onStart = async function ({ api, event, threadsData }) {
         "╚══════════════════════╝"
       ];
       break;
-    }
-
-    case "log:subscribe":
-    case "log:unsubscribe": {
-      await refreshThreadMemory(api, threadID, threadsData);
-      return;
     }
 
     default:
