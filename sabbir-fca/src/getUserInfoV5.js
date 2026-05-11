@@ -48,12 +48,12 @@ module.exports = function(defaultFuncs, api, ctx) {
       // failure one.
       // @TODO What do we do in this case?
       if (resData[resData.length - 1].error_results !== 0) {
-        console.error("GetThreadInfo", "Bạn Đang Bị Ăn Get Vì Sử Dụng Quá Nhiều !");
+        console.error("GetThreadInfo", "Rate limited due to too many requests!");
       }
         callback(null, resData);
     })
     .catch(function(err) {
-      log.error("getThreadInfoGraphQL", "Lỗi: getUserInfoV5 Có Thể Do Bạn Spam Quá Nhiều, Hãy Thử Lại !");
+      log.error("getThreadInfoGraphQL", "Error: getUserInfoV5 - Too many requests, please try again!");
     return callback(err);
   });
     return returnPromise;

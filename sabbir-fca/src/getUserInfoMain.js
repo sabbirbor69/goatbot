@@ -57,7 +57,7 @@ module.exports = function (defaultFuncs, api, ctx) {
         return callback(null, formatData(resData.payload.profiles));
       })
       .catch(function (err) {
-        log.error("getUserInfo", "Lỗi: getUserInfo Có Thể Do Bạn Spam Quá Nhiều !,Hãy Thử Lại !");
+        log.error("getUserInfo", "Error: getUserInfo - Too many requests, please try again!");
         return callback(err);
       });
     return returnPromise;

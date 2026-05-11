@@ -337,7 +337,7 @@ function BypassAutomationNotification(resp, jar, globalOptions, appstate,ID) {
 
 function buildAPI(globalOptions, html, jar, bypass_region) {
     //new feat
-    let fb_dtsg = utils.getFroms(html, '["DTSGInitData",[],{"token":"', '","')[0]; //nhăm nhăm nhăm nhăm
+    let fb_dtsg = utils.getFroms(html, '["DTSGInitData",[],{"token":"', '","')[0];
     // PATCH: modern Facebook ships DTSGInitData with empty token; the value is fetched async via JS.
     // Try alternate extractors that some account variants still expose, then fall back to the LSD token,
     // which Facebook accepts as a CSRF token for many graphql / chat endpoints when the user is authenticated.
@@ -359,13 +359,6 @@ function buildAPI(globalOptions, html, jar, bypass_region) {
     var maybeUser = cookie.filter(function(val) { return val.cookieString().split("=")[0] === "c_user"; });
     var maybeTiktik = cookie.filter(function(val) { return val.cookieString().split("=")[0] === "i_user"; });
 
-    console.log("[FCA-DEBUG] buildAPI called: html.length=" + (html||'').length +
-        " fb_dtsg=" + (fb_dtsg ? 'present' : 'MISSING') +
-        " jar_c_user=" + (maybeUser.length ? 'present' : 'MISSING') +
-        " jar_i_user=" + (maybeTiktik.length ? 'present' : 'MISSING') +
-        " hasDTSGStr=" + ((html||'').indexOf('DTSGInitData') >= 0) +
-        " hasFb_dtsg_input=" + ((html||'').indexOf('name="fb_dtsg"') >= 0) +
-        " AppState=" + (global.Fca && global.Fca.Data && Array.isArray(global.Fca.Data.AppState) ? 'loaded(' + global.Fca.Data.AppState.length + ')' : 'NONE'));
 
     // PATCH: Facebook can clear c_user via Set-Cookie even when returning a logged-in page.
     // If the HTML clearly shows a logged-in session (DTSGInitData present) but c_user was wiped
@@ -423,15 +416,14 @@ function buildAPI(globalOptions, html, jar, bypass_region) {
             legacyFBMQTTMatch: html.match(/\["MqttWebConfig",\[\],{"fbid":"(.*?)","appID":219994525426954,"endpoint":"(.*?)","pollingEndpoint":"(.*?)"/)
         }
 
-        // tổng hợp danh sách region never die của Kanzu =))
         /**
-         * PRN = Pacific Northwest Region (Khu vực Tây Bắc Thái Bình Dương)
+         * PRN = Pacific Northwest Region
          * VLL = Valley Region
          * ASH = Ashburn Region
          * DFW = Dallas/Fort Worth Region
          * LLA = Los Angeles Region
          * FRA = Frankfurt
-         * SIN = Singapore 
+         * SIN = Singapore
          * NRT = Tokyo (Japan)
          * HKG = Hong Kong
          * SYD = Sydney
@@ -481,7 +473,7 @@ function buildAPI(globalOptions, html, jar, bypass_region) {
             {
                 code: "PRN",
                 name: "Pacific Northwest Region",
-                location: "Khu vực Tây Bắc Thái Bình Dương"
+                location: "Pacific Northwest"
             },
             {
                 code: "VLL",
@@ -1251,99 +1243,8 @@ try {
                 //         if (redirect && redirect[1]) return utils.get(redirect[1], jar, null, globalOptions).then(utils.saveCookies(jar));
                 //     return res;
                 // })
-                .then(async function(res){
+                .then(function(res){
                     var html = res.body;
-                    // Diagnostic: capture what DTSGInitData actually looks like in the response
-                    try {
-                        var dtsgSnippet = (html.match(/DTSGInitData[^\n]{0,200}/) || [])[0];
-                        console.log("[FCA-DIAG] DTSGInitData snippet: " + (dtsgSnippet ? dtsgSnippet.slice(0, 180) : 'NOT FOUND'));
-                        var dtsgInputSnippet = (html.match(/name="fb_dtsg"[^>]{0,120}/) || [])[0];
-                        console.log("[FCA-DIAG] fb_dtsg input snippet: " + (dtsgInputSnippet || 'NOT FOUND'));
-                        var asyncTok = (html.match(/"async_get_token":"([^"]*)"/) || [])[1];
-                        console.log("[FCA-DIAG] async_get_token: " + (asyncTok !== undefined ? '"' + asyncTok + '" (len=' + asyncTok.length + ')' : 'NOT FOUND'));
-                    } catch (eDiag) { console.log("[FCA-DIAG] err: " + eDiag.message); }
-                    // Modern www.facebook.com ships DTSGInitData with an empty token (the real
-                    // value is fetched async by client JS). When that happens, probe a list of
-                    // alternate FB surfaces that historically still embed a real fb_dtsg in the
-                    // initial HTML — using the FCA-authenticated jar/headers, not naked HTTPS.
-                    var hasUsableDtsg = /\["DTSGInitData",\[\],\{"token":"[^"]{20,}"/.test(html);
-                    if (!hasUsableDtsg) {
-                        var probeUrls = [
-                            'https://mbasic.facebook.com/profile.php',
-                            'https://mbasic.facebook.com/home.php',
-                            'https://mbasic.facebook.com/messages',
-                            'https://m.facebook.com/profile.php',
-                            'https://m.facebook.com/messages',
-                            'https://web.facebook.com/',
-                            'https://business.facebook.com/business_locations',
-                            'https://www.messenger.com/',
-                            'https://accountscenter.facebook.com/'
-                        ];
-                        var foundTok = null, foundFrom = null;
-                        for (var pi = 0; pi < probeUrls.length && !foundTok; pi++) {
-                            var pu = probeUrls[pi];
-                            try {
-                                var pres = await utils
-                                    .get(pu, jar, null, globalOptions, { noRef: true })
-                                    .then(utils.saveCookies(jar));
-                                var pbody = (pres && pres.body) || '';
-                                var pstatus = pres && pres.statusCode;
-                                var t1 = (pbody.match(/name="fb_dtsg"\s+value="([^"]+)"/) || [])[1];
-                                var t2 = (pbody.match(/\["DTSGInitData",\[\],\{"token":"([^"]{20,})"/) || [])[1];
-                                var t3 = (pbody.match(/"DTSGInitialData"[^}]{0,200}"token":"([^"]{20,})"/) || [])[1];
-                                var t4 = (pbody.match(/"async_get_token":"([^"]{20,})"/) || [])[1];
-                                var cand = t1 || t2 || t3 || t4;
-                                console.log("[FCA-PROBE] " + pu + " status=" + pstatus + " len=" + pbody.length +
-                                    " input=" + (t1 ? t1.length : '-') +
-                                    " init=" + (t2 ? t2.length : '-') +
-                                    " initial=" + (t3 ? t3.length : '-') +
-                                    " async=" + (t4 ? t4.length : '-'));
-                                if (cand) { foundTok = cand; foundFrom = pu; }
-                            } catch (ePr) {
-                                console.log("[FCA-PROBE] " + pu + " ERR " + (ePr && ePr.message));
-                            }
-                        }
-                        if (foundTok) {
-                            console.log("[FCA-DEBUG] fb_dtsg recovered via " + foundFrom + " (len=" + foundTok.length + ")");
-                            html = '["DTSGInitData",[],{"token":"' + foundTok + '","async_get_token":""}],' + html;
-                        } else {
-                            // Last resort: launch headless Chromium so the page's own JS
-                            // executes the async DTSG fetch, then steal the token + the
-                            // post-navigation cookie set.
-                            try {
-                                console.log("[FCA-BROWSER] Launching headless Chromium to fetch fb_dtsg...");
-                                var fetchFbDtsgBrowser = require('./Extra/fetchFbDtsgBrowser');
-                                var appstateForBrowser = (global.Fca && global.Fca.Data && Array.isArray(global.Fca.Data.AppState)) ? global.Fca.Data.AppState : [];
-                                var br = await fetchFbDtsgBrowser.fetchFbDtsgViaBrowser(appstateForBrowser);
-                                if (br && br.token) {
-                                    console.log("[FCA-BROWSER] fb_dtsg recovered via headless browser (source=" + br.source + " len=" + br.token.length + ")");
-                                    html = '["DTSGInitData",[],{"token":"' + br.token + '","async_get_token":""}],' + html;
-                                    // Replay the browser's post-navigation cookies into the
-                                    // FCA jar so xs / c_user rotations are reflected.
-                                    if (Array.isArray(br.cookies)) {
-                                        var farFuture = "Tue, 19 Jan 2038 03:14:07 GMT";
-                                        for (var ci = 0; ci < br.cookies.length; ci++) {
-                                            var bc = br.cookies[ci];
-                                            if (!bc || !bc.name) continue;
-                                            try {
-                                                jar.setCookie(
-                                                    bc.name + "=" + bc.value +
-                                                    "; expires=" + farFuture +
-                                                    "; domain=" + (bc.domain && bc.domain.replace(/^\./, '') || 'facebook.com') +
-                                                    "; path=" + (bc.path || '/') + ";",
-                                                    "https://www.facebook.com"
-                                                );
-                                            } catch (eCk) {}
-                                        }
-                                    }
-                                } else {
-                                    console.log("[FCA-BROWSER] Headless browser could not extract fb_dtsg" + (br && br.error ? (": " + br.error) : "."));
-                                }
-                            } catch (eBr) {
-                                console.log("[FCA-BROWSER] Headless extraction failed: " + (eBr && eBr.message));
-                            }
-                        }
-                    }
                     var Obj = buildAPI(globalOptions, html, jar, bypass_region_err);
                     ctx = Obj.ctx;
                     api = Obj.api;
@@ -1527,7 +1428,7 @@ function login(loginData, options, callback) {
                                     secret: secret.base32,
                                     encoding: 'base32'
                                 })) {
-                                    logger.Warning("Mã Không Đúng vui lòng nhập lại(Incorrect code, please enter again.)")
+                                    logger.Warning("Incorrect code, please enter again.")
                                     ask();
                                 }
                                 else {

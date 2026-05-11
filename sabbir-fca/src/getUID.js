@@ -24,7 +24,7 @@ module.exports = function (_defaultFuncs, api, _ctx) {
             var LinkSplit = Link.split('/');
             if (LinkSplit.indexOf("https:") == 0) {
               if (!isNaN(LinkSplit[3]) && !Link.split('=')[1]  && !isNaN(Link.split('=')[1])) {
-                api.sendMessage('Sai Link, Link Cần Có Định Dạng Như Sau: facebook.com/Lazic.Kanzu',global.Fca.Data.event.threadID,global.Fca.Data.event.messageID);
+                api.sendMessage('Invalid link! Link format should be: facebook.com/username',global.Fca.Data.event.threadID,global.Fca.Data.event.messageID);
                 callback(null, String(4));
               }
               else if (!isNaN(Link.split('=')[1]) && Link.split('=')[1]) {
@@ -48,7 +48,7 @@ module.exports = function (_defaultFuncs, api, _ctx) {
         }
         else {
             callback(null, null);
-            api.sendMessage('Sai Link, Link Cần Là Link Của Facebook',global.Fca.Data.event.threadID,global.Fca.Data.event.messageID);
+            api.sendMessage('Invalid link! Must be a Facebook link',global.Fca.Data.event.threadID,global.Fca.Data.event.messageID);
         }
     }
     catch (e) {

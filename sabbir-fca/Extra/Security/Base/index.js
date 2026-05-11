@@ -74,7 +74,7 @@ else {
       Security: Security,
       Previous: parseInt(Security) - Secret,//after + (10) main   + random
       Secret: Secret, // save
-      Number: Between(10,50) // vị trí của real appstate trừ 10
+      Number: Between(10,50) // position of real appstate minus 10
     };
   }
 

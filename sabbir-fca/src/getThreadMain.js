@@ -2,7 +2,7 @@
 
 var utils = require("../utils");
 var log = require("npmlog");
-// tương lai đi rồi fix ahahha
+// TODO: fix later
 function formatEventReminders(reminder) {
   return {
     reminderID: reminder.id,
@@ -163,7 +163,7 @@ module.exports = function(defaultFuncs, api, ctx) {
       };
     }
     
-    //! được tìm thấy vào giữa tháng 8/2022 bởi @KanzuWakazaki - đã được chia sẻ cho @D-Jukie và Horizon Team Public group 🤴
+    //! Found in mid Aug 2022 by @KanzuWakazaki
     //* những code tương tự muliti thread như này đều có thể là copy idea 🐧
     //* đã áp dụng vào fca mới(cloud - fca(private)) vào cuối tháng 8/2022 bởi @IteralingCode(Hidden Member( always :) )) - Synthetic 4 - @Horizon Team
     //*cập nhật dự án bị bỏ rơi này vào ngày 19/11/2022 bởi @KanzuWakazaki(Owner) - Synthetic 1  - @Horizon Team nhằm đáp ứng nhu cầu của client !
@@ -212,7 +212,7 @@ module.exports = function(defaultFuncs, api, ctx) {
     })
     .catch(function(err) {
 
-      log.error("getThreadInfoGraphQL", "Lỗi: getThreadInfoGraphQL Có Thể Do Bạn Spam Quá Nhiều, Hãy Thử Lại !");
+      log.error("getThreadInfoGraphQL", "Error: getThreadInfoGraphQL - Too many requests, please try again!");
     return callback(err);
   });
   return returnPromise;

@@ -2,7 +2,7 @@
 "use strict";
 
 var utils = require("../utils");
-// tương lai đi rồi fix ahahha
+// TODO: fix later
 function formatEventReminders(reminder) {
   return {
     reminderID: reminder.id,
@@ -230,7 +230,7 @@ module.exports = function(defaultFuncs, api, ctx) {
           defaultFuncs.post("https://www.facebook.com/api/graphqlbatch/", ctx.jar, Submit)
           .then(utils.parseAndCheckLogin(ctx, defaultFuncs))
           .then(resData => {
-              if (resData.error || resData[resData.length - 1].error_results !== 0) throw "Lỗi: getThreadInfoGraphQL Có Thể Do Bạn Spam Quá Nhiều";
+              if (resData.error || resData[resData.length - 1].error_results !== 0) throw "Error: getThreadInfoGraphQL - You may be sending too many requests";
                   resData = resData.slice(0, -1).sort((a, b) => Object.keys(a)[0].localeCompare(Object.keys(b)[0]));
                   resData.forEach((x, y) => tempThreadInf.push(formatThreadGraphQLResponse(x["o" + y].data)));
                   return resolve({
@@ -267,8 +267,8 @@ module.exports = function(defaultFuncs, api, ctx) {
 }
   
   const checkAverageStaticTimestamp = function (avgTimeStamp) {
-    const DEFAULT_UPDATE_TIME = 900 * 1000; //thời gian cập nhật tối đa + với thời gian trung bình của tổng request 1 mảng
-    //khi request phút thứ 3, 1 req ở phút thứ 7, 1 req ở phút thứ 10, vậy trung bình là (3+7+1) / time.length (3) + với 15p = tg trung bình để cập nhật 1 mảng
+    const DEFAULT_UPDATE_TIME = 900 * 1000; // max update time + average time for all requests in one batch
+    // e.g. requests at min 3, 7, 10 -> avg = (3+7+1)/3 + 15min = avg update time for one batch
     const MAXIMUM_ERROR_TIME = 10 * 1000;
     return { //khi check = false thì cần cập nhật vì đã hơn thời gian tb + 15p
         Check:  (parseInt(avgTimeStamp) + parseInt(DEFAULT_UPDATE_TIME)) + parseInt(MAXIMUM_ERROR_TIME) >= Date.now(), // ở đây avgTimeStamp là thời gian cố định của 1 mảng queue khi đầy 

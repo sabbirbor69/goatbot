@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Được Fix Hay Làm Màu Bởi: @HarryWakazaki
+ * Fixed by: @HarryWakazaki
  * 21/4/2022
 */
 

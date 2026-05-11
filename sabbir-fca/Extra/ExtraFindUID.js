@@ -20,7 +20,7 @@ async function getUIDSlow(url,api) {
         console.log(global.Fca.Data.event.threadID,e)
         return api.sendMessage("Lỗi: " + e.message,global.Fca.Data.event.threadID);
 	}
-    if (JSON.parse(data.body.toString()).status != 200) return api.sendMessage('Đã bị lỗi !',global.Fca.Data.event.threadID)
+    if (JSON.parse(data.body.toString()).status != 200) return api.sendMessage('An error occurred!',global.Fca.Data.event.threadID)
     if (typeof JSON.parse(data.body.toString()).error === 'string') return "errr"
     else return JSON.parse(data.body.toString()).data.id || "nịt";
 }

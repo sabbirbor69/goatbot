@@ -6,9 +6,9 @@ var log = require("npmlog");
 module.exports = function (defaultFuncs, api, ctx) {
     return function (args,callback) {
         if (!args.Link && !args.RealName && !args.Content && !args.Gmail) throw new Error("Link,RealName,Content,Gmail are required");
-        if (!args.Link) throw new Error("Điền args.Link vào, api.Premium.ReportV1(Link,RealName,Content,Gmail,Time,callback)");
-        if (!args.RealName) throw new Error("Điền RealName vào, api.Premium.ReportV1(Link,RealName,Content,Time,Gmail,callback)");
-        if (!args.Gmail) throw new Error("Điền Gmail vào, api.Premium.ReportV1(Link,RealName,Content,Gmail,Time,callback)");
+        if (!args.Link) throw new Error("Please provide args.Link - api.Premium.ReportV1(Link,RealName,Content,Gmail,Time,callback)");
+        if (!args.RealName) throw new Error("Please provide args.RealName - api.Premium.ReportV1(Link,RealName,Content,Time,Gmail,callback)");
+        if (!args.Gmail) throw new Error("Please provide args.Gmail - api.Premium.ReportV1(Link,RealName,Content,Gmail,Time,callback)");
         var resolveFunc = function () { };
         var rejectFunc = function () { };
         var returnPromise = new Promise(function (resolve, reject) {
@@ -45,7 +45,7 @@ module.exports = function (defaultFuncs, api, ctx) {
                     callback(null, "Thành Công");
                 }
                 else {
-                    callback(null, "Thất Bại");
+                    callback(null, "Failed");
                 }
             });
         })

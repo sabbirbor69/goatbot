@@ -165,7 +165,7 @@ function listenMqtt(defaultFuncs, api, ctx, globalCallback) {
     } else {
       globalCallback({
         type: 'stop_listen',
-        error: 'Server Đã Sập - Auto Restart'
+        error: 'Server Down - Auto Restart'
       }, null);
       return process.exit(1);
     }
@@ -186,7 +186,7 @@ function listenMqtt(defaultFuncs, api, ctx, globalCallback) {
     }
 
     if (process.env.OnStatus === undefined) {
-      global.Fca.Require.logger.Normal('Bạn Đang Sài Phiên Bản: Premium Access');
+      global.Fca.Require.logger.Normal('Running Version: Premium Access');
 
       if (Number(global.Fca.Require.FastConfig.AutoRestartMinutes) === 0) {
         // something
@@ -422,7 +422,7 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, {
         try {
           fmtMsg = utils.formatDeltaMessage(delta);
         } catch (err) {
-          return log.error('Lỗi Nhẹ', err);
+          return log.error('Minor Error', err);
         }
         
         if (fmtMsg) {
@@ -705,7 +705,7 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, {
             fmtMsg = utils.formatDeltaEvent(delta);
           } catch (err) {
             console.log(delta);
-            return log.error('Lỗi Nhẹ', err);
+            return log.error('Minor Error', err);
           }
           globalCallback(null, fmtMsg);
           break;
