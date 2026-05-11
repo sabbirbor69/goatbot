@@ -3,23 +3,36 @@ const path = require("path");
 
 module.exports = async (api, event, logger, getText) => {
 	try {
-		const commandPath = path.join(__dirname, "../scripts/cmds");
 
-		if (!fs.existsSync(commandPath)) return;
+		const commandPath = path.join(
+			__dirname,
+			"../scripts/cmds"
+		);
+
+		if (!fs.existsSync(commandPath))
+			return;
 
 		const body = (event.body || "").trim();
 
-		if (!body) return;
+		if (!body)
+			return;
 
-		const prefix = global.GoatBot?.config?.prefix || "/";
+		const prefix =
+			global.GoatBot?.config?.prefix || "/";
 
-		let commandName = body.split(/\s+/)[0].toLowerCase();
+		let commandName = body
+			.split(/\s+/)[0]
+			.toLowerCase();
 
 		if (commandName.startsWith(prefix)) {
-			commandName = commandName.slice(prefix.length);
+			commandName = commandName.slice(
+				prefix.length
+			);
 		}
 
-		const args = body.split(/\s+/).slice(1);
+		const args = body
+			.split(/\s+/)
+			.slice(1);
 
 		const commandFiles = fs
 			.readdirSync(commandPath)
@@ -28,15 +41,23 @@ module.exports = async (api, event, logger, getText) => {
 		for (const file of commandFiles) {
 
 			delete require.cache[
-				require.resolve(path.join(commandPath, file))
+				require.resolve(
+					path.join(commandPath, file)
+				)
 			];
 
-			const command = require(path.join(commandPath, file));
+			const command = require(
+				path.join(commandPath, file)
+			);
 
-			if (!command.config || !command.config.name)
+			if (
+				!command.config ||
+				!command.config.name
+			)
 				continue;
 
-			const cmdName = command.config.name.toLowerCase();
+			const cmdName =
+				command.config.name.toLowerCase();
 
 			if (cmdName === commandName) {
 
@@ -50,18 +71,15 @@ module.exports = async (api, event, logger, getText) => {
 
 				try {
 
-					// typing ON
+					// ====================
+					// TYPING ON
+					// ====================
+
 					try {
-						if (api.ctx?.mqttClient) {
-							api.ctx.mqttClient.publish(
-								"/thread_typing",
-								JSON.stringify({
-									state: 1,
-									thread: event.threadID,
-									sender_fbid: api.getCurrentUserID()
-								})
-							);
-						}
+						api.sendTypingIndicator(
+							event.threadID,
+							true
+						);
 					}
 					catch (_) {}
 
@@ -70,8 +88,14 @@ module.exports = async (api, event, logger, getText) => {
 						setTimeout(resolve, 2000)
 					);
 
-					// GoatBot style
-					if (typeof command.onStart === "function") {
+					// ====================
+					// GOATBOT STYLE
+					// ====================
+
+					if (
+						typeof command.onStart ===
+						"function"
+					) {
 
 						await command.onStart({
 							api,
@@ -81,6 +105,7 @@ module.exports = async (api, event, logger, getText) => {
 							getText,
 
 							message: {
+
 								reply: (msg) =>
 									api.sendMessage(
 										msg,
@@ -95,10 +120,17 @@ module.exports = async (api, event, logger, getText) => {
 									)
 							}
 						});
+
 					}
 
-					// Mirai style fallback
-					else if (typeof command.run === "function") {
+					// ====================
+					// MIRAI STYLE
+					// ====================
+
+					else if (
+						typeof command.run ===
+						"function"
+					) {
 
 						await command.run({
 							api,
@@ -107,24 +139,23 @@ module.exports = async (api, event, logger, getText) => {
 							logger,
 							getText
 						});
+
 					}
 
-					// typing OFF
+					// ====================
+					// TYPING OFF
+					// ====================
+
 					try {
-						if (api.ctx?.mqttClient) {
-							api.ctx.mqttClient.publish(
-								"/thread_typing",
-								JSON.stringify({
-									state: 0,
-									thread: event.threadID,
-									sender_fbid: api.getCurrentUserID()
-								})
-							);
-						}
+						api.sendTypingIndicator(
+							event.threadID,
+							false
+						);
 					}
 					catch (_) {}
 
 					return;
+
 				}
 				catch (e) {
 
@@ -132,21 +163,18 @@ module.exports = async (api, event, logger, getText) => {
 
 					// typing OFF on error
 					try {
-						if (api.ctx?.mqttClient) {
-							api.ctx.mqttClient.publish(
-								"/thread_typing",
-								JSON.stringify({
-									state: 0,
-									thread: event.threadID,
-									sender_fbid: api.getCurrentUserID()
-								})
-							);
-						}
+						api.sendTypingIndicator(
+							event.threadID,
+							false
+						);
 					}
 					catch (_) {}
 
 					logger?.(
-						getText?.("system.commandError", file) ||
+						getText?.(
+							"system.commandError",
+							file
+						) ||
 						`Command Error: ${file}`,
 						"ERROR"
 					);
@@ -156,9 +184,11 @@ module.exports = async (api, event, logger, getText) => {
 						event.threadID,
 						event.messageID
 					);
+
 				}
 			}
 		}
+
 	}
 	catch (e) {
 		console.log(e);
