@@ -571,6 +571,8 @@ function buildAPI(globalOptions, html, jar, bypass_region) {
                 return utils.getAppState(jar);
             }
         };
+
+api.sendTypingIndicator = require("./src/sendTypingIndicator")(defaultFuncs, api, ctx);
         if (region && mqttEndpoint) {
             //do sth
         }
