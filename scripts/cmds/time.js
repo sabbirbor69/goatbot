@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const moment = require("moment-timezone");
 
 module.exports.config = {
@@ -12,7 +14,10 @@ module.exports.config = {
   cooldowns: 3
 };
 
-module.exports.onStart = async function ({ message }) {
+module.exports.onStart = async function ({ api, event, message }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const now = moment().tz("Asia/Dhaka");
 
   const date = now.format("DD MMMM YYYY");

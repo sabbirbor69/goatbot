@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const fs = require("fs-extra");
 const axios = require("axios");
 const path = require("path");
@@ -19,6 +21,9 @@ if (!global.logMessage) global.logMessage = new Map();
 if (!global.unseenEnabled) global.unseenEnabled = new Map();
 
 module.exports.onStart = async function ({ api, event, threadsData }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const { threadID, messageID, args } = event;
 
   const threadInfo = await threadsData.get(threadID);

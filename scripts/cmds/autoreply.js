@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const axios = require("axios");
 
 const CYBERBOT_API = "https://simsimi.cyberbot.top";
@@ -70,7 +72,10 @@ module.exports.onChat = async function ({ message, event, api }) {
   }
 };
 
-module.exports.onStart = async function ({ message, args }) {
+module.exports.onStart = async function ({ api, event, message, args }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const input = args.join(" ");
   if (!input) return message.reply("বলো...");
   try {

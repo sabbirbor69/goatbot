@@ -1,5 +1,7 @@
 "use strict";
 
+const { loadingBar } = require("../../utils/animation.js");
+
 const axios = require("axios");
 
 module.exports.config = {
@@ -14,7 +16,10 @@ module.exports.config = {
   usages: "say [text]"
 };
 
-module.exports.onStart = async function ({ message, args }) {
+module.exports.onStart = async function ({ api, event, message, args }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const text = args.join(" ").trim();
 
   if (!text) {

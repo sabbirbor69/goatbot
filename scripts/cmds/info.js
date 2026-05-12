@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const moment = require("moment-timezone");
 
 module.exports.config = {
@@ -12,7 +14,10 @@ module.exports.config = {
   cooldowns: 5
 };
 
-module.exports.onStart = async function ({ api, message }) {
+module.exports.onStart = async function ({ api, event, message }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const totalSeconds = Math.floor(process.uptime());
   const days = Math.floor(totalSeconds / 86400);
   const hours = Math.floor((totalSeconds % 86400) / 3600);

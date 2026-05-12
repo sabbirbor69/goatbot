@@ -2,6 +2,7 @@ const axios = require("axios");
 const fs = require("fs-extra");
 const path = require("path");
 const { resolveTargets } = require("../../utils/resolveTarget.js");
+const { loadingBar } = require("../../utils/animation.js");
 
 module.exports.config = {
   name: "details",
@@ -15,108 +16,23 @@ module.exports.config = {
   cooldowns: 5
 };
 
-function sleep(ms) {
-  return new Promise(resolve =>
-    setTimeout(resolve, ms)
-  );
-}
-
 module.exports.onStart = async function ({
   api,
   message,
   event,
   args
 }) {
-  const { threadID } = event;
+  const { threadID, messageID } = event;
+
+  await loadingBar(api, threadID, messageID);
 
   try {
     let targetID = event.senderID;
 
-    // resolveTargets use
-    const result = await resolveTargets({
-      api,
-      event,
-      args
-    });
+    const result = await resolveTargets({ api, event, args });
 
-    if (
-      result.targets &&
-      result.targets.length > 0
-    ) {
-      targetID =
-        result.targets[0].uid;
-    }
-
-    // Animation Start
-    const start =
-      await api.sendMessage(
-`╔════════════════════╗
-║   👤 USER DETAILS   ║
-╚════════════════════╝
-
-⏳ Starting Scan...
-`,
-        threadID
-      );
-
-    const frames = [
-
-`╔════════════════════╗
-║   👤 USER DETAILS   ║
-╚════════════════════╝
-
-░░░░░░░░░░ 0%
-
-📥 Fetching User Data...
-`,
-
-`╔════════════════════╗
-║   👤 USER DETAILS   ║
-╚════════════════════╝
-
-███░░░░░░░ 25%
-
-🧠 Processing Profile...
-`,
-
-`╔════════════════════╗
-║   👤 USER DETAILS   ║
-╚════════════════════╝
-
-█████░░░░░ 50%
-
-📡 Connecting Facebook...
-`,
-
-`╔════════════════════╗
-║   👤 USER DETAILS   ║
-╚════════════════════╝
-
-████████░░ 75%
-
-🖼️ Downloading HD Photo...
-`,
-
-`╔════════════════════╗
-║   👤 USER DETAILS   ║
-╚════════════════════╝
-
-██████████ 100%
-
-✅ DETAILS READY
-🤖 SABBIR CHAT BOT
-`
-    ];
-
-    for (const frame of frames) {
-      await sleep(1200);
-
-      try {
-        await api.editMessage(
-          frame,
-          start.messageID
-        );
-      } catch (e) {}
+    if (result.targets && result.targets.length > 0) {
+      targetID = result.targets[0].uid;
     }
 
     // User Info

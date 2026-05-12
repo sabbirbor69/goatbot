@@ -1,99 +1,35 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 module.exports.config = {
   name: "restart",
-  version: "5.0.0",
+  version: "6.0.0",
   role: 2,
   credits: "Ariful Islam Sabbir",
-  description: "Animated Restart System",
+  description: "Bot restart with cache clear",
   category: "Admin",
   cooldowns: 5
 };
 
-function sleep(ms) {
-  return new Promise(resolve =>
-    setTimeout(resolve, ms)
-  );
-}
+module.exports.onStart = async function ({ api, event }) {
+  const { threadID, messageID } = event;
 
-module.exports.onStart = async function ({
-  api,
-  event
-}) {
+  await loadingBar(api, threadID, messageID);
 
-  const threadID = event.threadID;
-
-  const start = await api.sendMessage(
-`╔════════════════════╗
-║   🔄 RESTART BOT   ║
-╚════════════════════╝
-
-⚡ Initializing Restart...
-`,
-    threadID
-  );
-
-  const frames = [
-
-`╔════════════════════╗
-║   🔄 RESTART BOT   ║
-╚════════════════════╝
-
-░░░░░░░░░░ 0%
-
-⚡ Initializing Restart...`,
-
-`╔════════════════════╗
-║   🔄 RESTART BOT   ║
-╚════════════════════╝
-
-███░░░░░░░ 25%
-
-💾 Saving session...`,
-
-`╔════════════════════╗
-║   🔄 RESTART BOT   ║
-╚════════════════════╝
-
-█████░░░░░ 50%
-
-🧠 Clearing cache...`,
-
-`╔════════════════════╗
-║   🔄 RESTART BOT   ║
-╚════════════════════╝
-
-████████░░ 75%
-
-📡 Reconnecting MQTT...`,
-
-`╔════════════════════╗
-║   🔄 RESTART BOT   ║
-╚════════════════════╝
-
-██████████ 100%
-
-✅ BOT RESTARTED SUCCESSFULLY
-📡 MQTT Connected
-🤖 SABBIR CHAT BOT ONLINE`
-  ];
-
-  for (const frame of frames) {
-
-    await sleep(1200);
-
-    try {
-
-      await api.editMessage(
-        start.messageID,
-        frame
-      );
-
-    } catch (e) {
-      console.log(e);
+  Object.keys(require.cache).forEach(key => {
+    if (
+      key.includes("/scripts/") ||
+      key.includes("/utils/") ||
+      key.includes("/includes/") ||
+      key.includes("/database/") ||
+      key.includes("/sabbir-fca/")
+    ) {
+      delete require.cache[key];
     }
-  }
+  });
 
-  setTimeout(() => {
-    process.exit(2);
-  }, 5000);
+  try {
+    await api.sendMessage("🔄 Bot restarting... 10 সেকেন্ড পরে আবার আসব!", threadID);
+  } catch (_) {}
 
+  process.exit(2);
 };

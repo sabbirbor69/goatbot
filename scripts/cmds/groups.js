@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 module.exports.config = {
         name: "groups",
         version: "1.0.0",
@@ -141,6 +143,9 @@ async function showGroupInfo(api, message, threadID, mode) {
 }
 
 module.exports.onStart = async function ({ api, message, event, args }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
         try {
                 const sub = (args[0] || "").toLowerCase();
 

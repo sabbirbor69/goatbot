@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 module.exports.config = {
   name: "uptime",
   version: "1.0.0",
@@ -11,6 +13,9 @@ module.exports.config = {
 };
 
 module.exports.onStart = async function ({ message, event }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const start = Date.now();
 
   const totalSeconds = Math.floor(process.uptime());

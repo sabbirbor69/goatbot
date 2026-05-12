@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const { getName } = require("../../utils/getName.js");
 
 module.exports.config = {
@@ -20,6 +22,9 @@ module.exports.config = {
 if (!global.autoAddEnabled) global.autoAddEnabled = new Map();
 
 module.exports.onStart = async function ({ api, event, args, message, threadsData }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const { threadID } = event;
   const sub = (args[0] || "").toLowerCase();
 

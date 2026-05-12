@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const axios = require("axios");
 const { getName } = require("../../utils/getName.js");
 
@@ -17,6 +19,9 @@ module.exports.config = {
 };
 
 module.exports.onStart = async function ({ api, event, args, message }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const { threadID } = event;
 
   if (!args[0]) return message.reply("📌 UID অথবা Facebook profile link দিন।");

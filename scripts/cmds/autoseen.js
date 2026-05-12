@@ -1,5 +1,7 @@
 "use strict";
 
+const { loadingBar } = require("../../utils/animation.js");
+
 const fs = require("fs");
 const path = require("path");
 
@@ -52,6 +54,9 @@ async function sabbirMarkSeen(api, threadID, messageID) {
 }
 
 module.exports.onStart = async function ({ message, args }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const sub = (args[0] || "status").toLowerCase();
 
   if (sub === "on" || sub === "enable") {

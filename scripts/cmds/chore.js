@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const axios = require("axios");
 const Jimp = require("jimp");
 const fs = require("fs-extra");
@@ -24,6 +26,9 @@ module.exports.config = {
 };
 
 module.exports.onStart = async function ({ api, event, args }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const { threadID, messageID, senderID } = event;
 
   try {

@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 module.exports.config = {
     name: "install",
     version: "5.0.0",
@@ -75,6 +77,9 @@ module.exports.onReply = async function ({ api, event, Reply }) {
 };
 
 module.exports.onStart = async function ({ api, event, args }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
     const { threadID, messageID, messageReply, senderID, attachments } = event;
     let sourceCode = "";
     let name = (args[0] || "").toLowerCase().replace(/.js$/i, "");

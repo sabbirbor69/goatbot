@@ -12,7 +12,6 @@ async function typeAndDelay(api, threadID, isGroup, ms) {
     }
   } catch (_) {}
   await sleep(ms);
-  // Always turn off typing after the delay
   try {
     if (typeof api.sendTypingIndicator === "function") {
       api.sendTypingIndicator(false, threadID, (err) => {});
@@ -40,7 +39,6 @@ async function animateSendLines(api, threadID, lines, opts) {
     await typeAndDelay(api, threadID, opts.isGroup, typingMs);
   }
 
-  // Try edit-based animation first; fall back to a single sendMessage if edit fails
   let sent;
   try {
     sent = await new Promise((resolve, reject) => {
@@ -53,13 +51,11 @@ async function animateSendLines(api, threadID, lines, opts) {
 
   if (!sent || !sent.messageID) return sent;
 
-  // Try to edit with all lines incrementally
   let editWorked = false;
   for (let i = 0; i < lines.length; i++) {
     const textToEdit = lines.slice(0, i + 1).join("\n");
     const ok = await _editApi(api, sent.messageID, textToEdit);
     if (!ok) {
-      // editMessage not supported — send the full message as a new message instead
       if (!editWorked) {
         try {
           await api.sendMessage({ body: lines.join("\n") }, threadID);
@@ -74,8 +70,45 @@ async function animateSendLines(api, threadID, lines, opts) {
   return sent;
 }
 
+async function loadingBar(api, threadID, replyToMessageID) {
+  const H = "╭─────❖─────╮\n   Loading...\n╰─────❖─────╯";
+  const FRAMES = [
+    `${H}\n\n0%   ░░░░░░░░░░`,
+    `${H}\n\n0%   ░░░░░░░░░░\n25%  ██░░░░░░░░`,
+    `${H}\n\n0%   ░░░░░░░░░░\n25%  ██░░░░░░░░\n50%  █████░░░░░`,
+    `${H}\n\n0%   ░░░░░░░░░░\n25%  ██░░░░░░░░\n50%  █████░░░░░\n75%  ███████░░░`,
+    `${H}\n\n0%   ░░░░░░░░░░\n25%  ██░░░░░░░░\n50%  █████░░░░░\n75%  ███████░░░\n100% ██████████\n\nDone ✔`,
+  ];
+
+  let sent;
+  try {
+    sent = await new Promise((resolve, reject) => {
+      api.sendMessage(
+        { body: FRAMES[0] },
+        threadID,
+        (err, info) => (err ? reject(err) : resolve(info)),
+        replyToMessageID
+      );
+    });
+  } catch (e) {
+    return null;
+  }
+
+  if (!sent || !sent.messageID) return null;
+
+  for (let i = 1; i < FRAMES.length; i++) {
+    await sleep(350);
+    try {
+      await api.editMessage(sent.messageID, FRAMES[i]);
+    } catch (_) {}
+  }
+
+  return sent;
+}
+
 module.exports = {
   sleep,
   typeAndDelay,
-  animateSendLines
+  animateSendLines,
+  loadingBar
 };

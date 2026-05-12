@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const { getName } = require("../../utils/getName.js");
 const { resolveTargets } = require("../../utils/resolveTarget.js");
 const activityTracker = require("../../utils/activityTracker.js");
@@ -56,6 +58,9 @@ function buildFallbackThreadInfo(threadID) {
 }
 
 module.exports.onStart = async function ({ api, event, args, message }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const { threadID, senderID, mentions, type, messageReply } = event;
 
   let threadInfo;

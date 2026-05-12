@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const axios = require("axios");
 
 module.exports.config = {
@@ -13,6 +15,9 @@ module.exports.config = {
 };
 
 module.exports.onStart = async function ({ api, event, message }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const ownerText =
     `╔══✨ OWNER INFO ✨══╗\n\n` +
     `👤 নাম: Md Ariful Islam Sabbir\n` +

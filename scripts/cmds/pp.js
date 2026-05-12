@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const axios = require("axios");
 const fs = require("fs-extra");
 const path = require("path");
@@ -39,6 +41,9 @@ async function resolveTarget(api, event) {
 }
 
 module.exports.onStart = async function ({ api, message, event }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const { uid: targetID } = await resolveTarget(api, event);
 
   try {

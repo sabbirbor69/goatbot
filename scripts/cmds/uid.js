@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const { resolveTargets } = require("../../utils/resolveTarget.js");
 
 module.exports.config = {
@@ -13,6 +15,9 @@ module.exports.config = {
 };
 
 module.exports.onStart = async function ({ api, message, event, args }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   // Argument na thakle nije'r UID dao
   const hasArgOrReply = (args && args.length > 0) || event.messageReply || (event.mentions && Object.keys(event.mentions).length > 0);
   if (!hasArgOrReply) {

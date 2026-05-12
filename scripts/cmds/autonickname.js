@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 module.exports.config = {
   name: "autonickname",
   version: "1.0.0",
@@ -40,6 +42,9 @@ async function saveCfg(threadsData, threadID, data, cfg) {
 }
 
 module.exports.onStart = async function ({ api, event, threadsData }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const { threadID, messageID, body } = event;
   const args = (body || "").trim().split(/\s+/);
   args.shift();

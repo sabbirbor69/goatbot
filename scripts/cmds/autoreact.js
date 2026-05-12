@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const reactions = [
   "❤️", "😆", "😮", "😢", "😠", "👍", "🎉", "🔥", "💯", "😍", "🥰", "😂", "👏", "💪", "🙌", "✨", "🚀", "🌈", "⭐", "🎈",
   "😎", "🤩", "🤔", "🧐", "🙄", "😏", "🥳", "😭", "😤", "🤯", "😴", "😇", "🥳", "😜", "🤑", "😲", "🤐", "😴", "🤤", "😵",
@@ -36,7 +38,10 @@ module.exports.onLoad = async function ({ threadsData }) {
   } catch (e) {}
 };
 
-module.exports.onStart = async function ({ event, args, message, threadsData }) {
+module.exports.onStart = async function ({ api, event, args, message, threadsData }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const { threadID } = event;
   const action = (args[0] || "").toLowerCase();
 

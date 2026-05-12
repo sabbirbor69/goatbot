@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 const { getName } = require("../../utils/getName.js");
 
 module.exports.config = {
@@ -25,6 +27,9 @@ function buildBodyWithMentions(prefix, suffix, members, separator = " ") {
 }
 
 module.exports.onStart = async ({ api, event, args, message }) => {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const { threadID, type, messageReply, mentions } = event;
 
   if (type === "message_reply" && messageReply) {

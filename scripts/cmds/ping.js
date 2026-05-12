@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 module.exports.config = {
   name: "ping",
   version: "1.0.0",
@@ -10,7 +12,10 @@ module.exports.config = {
   cooldowns: 3
 };
 
-module.exports.onStart = async function ({ message }) {
+module.exports.onStart = async function ({ api, event, message }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const start = Date.now();
   await message.reply("🏓 Pinging...");
   const ping = Date.now() - start;

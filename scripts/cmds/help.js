@@ -1,3 +1,4 @@
+const { loadingBar } = require("../../utils/animation.js");
 const SABBIR = "Ariful Islam Sabbir";
 
 module.exports.config = {
@@ -188,85 +189,6 @@ function registerReplyNav(
   );
 }
 
-async function showLoading(
-  api,
-  threadID
-) {
-
-  const frames = [
-
-`╔════════════════╗
-║ 📖 HELP MENU loading ║
-╚════════════════╝
-
-▒▒▒▒▒▒▒▒▒▒ 0%
-
-⏳ Loading Commands...`,
-
-`╔════════════════╗
-║ 📖 HELP MENU loading ║
-╚════════════════╝
-
-██▒▒▒▒▒▒▒▒ 25%
-
-📦 Fetching Commands...`,
-
-`╔════════════════╗
-║ 📖 HELP MENU loading ║
-╚════════════════╝
-
-█████▒▒▒▒▒ 50%
-
-⚡ Processing Data...`,
-
-`╔════════════════╗
-║ 📖 HELP MENU loading ║
-╚════════════════╝
-
-███████▒▒▒ 75%
-
-🚀 Building Help Menu...`,
-
-`╔════════════════╗
-║ 📖 HELP MENU loading ║
-╚════════════════╝
-
-██████████ 100%
-
-✅ Complete...`
-
-  ];
-
-  const msg =
-    await api.sendMessage(
-      frames[0],
-      threadID
-    );
-
-  for (
-    let i = 1;
-    i < frames.length;
-    i++
-  ) {
-
-    await new Promise(
-      resolve =>
-        setTimeout(resolve, 400)
-    );
-
-    try {
-
-      await api.editMessage(
-        msg.messageID,
-        frames[i]
-      );
-
-    } catch (_) {}
-  }
-
-  return msg.messageID;
-}
-
 module.exports.onStart =
 async function ({
   api,
@@ -295,10 +217,7 @@ async function ({
     );
 
   const loadingID =
-    await showLoading(
-      api,
-      event.threadID
-    );
+    ((await loadingBar(api, event.threadID, event.messageID)) || {}).messageID;
 
   if (args[0]) {
 

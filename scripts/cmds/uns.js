@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 module.exports.config = {
   name: "uns",
   version: "1.0.0",
@@ -11,6 +13,9 @@ module.exports.config = {
 };
 
 module.exports.onStart = async function ({ api, event }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
   const { threadID, messageID, messageReply } = event;
   const botID = String(api.getCurrentUserID());
 

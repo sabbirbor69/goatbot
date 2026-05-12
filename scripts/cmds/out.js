@@ -1,3 +1,5 @@
+const { loadingBar } = require("../../utils/animation.js");
+
 module.exports.config = {
   name: "out",
   version: "1.0.0",
@@ -9,6 +11,9 @@ module.exports.config = {
 };
 
 module.exports.onStart = async function ({ api, event }) {
+  await loadingBar(api, event.threadID, event.messageID);
+
+
 
   api.sendMessage(
     "👋 Goodbye Everyone...\nBot is leaving this group.",
