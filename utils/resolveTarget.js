@@ -1,5 +1,3 @@
-const fs = require("fs-extra");
-
 function normalize(s) {
 	return String(s || "")
 		.toLowerCase()
@@ -16,17 +14,28 @@ async function resolveTargets({ api, event, args = [] }) {
 	// =========================
 	// 1. Mention Detect
 	// =========================
-	const mentionIDs = mentions && typeof mentions === "object"
-		? Object.keys(mentions).filter(
-			id => id && id !== "null" && id !== senderID
-		)
-		: [];
+	if ((body || "").includes("@")) {
 
-	if (mentionIDs.length > 0) {
+		const mentionIDs = mentions && typeof mentions === "object"
+			? Object.keys(mentions)
+				.map(String)
+				.filter(id => id && id !== "null")
+			: [];
+
+		// mention fail
+		if (mentionIDs.length === 0) {
+			return {
+				error: true,
+				message: "❌ Mention detect failed."
+			};
+		}
+
 		return {
 			targets: mentionIDs.map(uid => ({
 				uid: String(uid),
-				name: mentions[uid]?.replace(/^@/, "") || null,
+				name: mentions[uid]
+					? mentions[uid].replace(/^@/, "").trim()
+					: null,
 				source: "mention"
 			})),
 			ambiguous: false
@@ -74,6 +83,7 @@ async function resolveTargets({ api, event, args = [] }) {
 
 	const query = rawArgs.join(" ").trim();
 
+	// কিছু না লিখলে নিজের UID
 	if (!query) {
 		return {
 			targets: [{
