@@ -258,32 +258,7 @@ async function getAppStateFromEmail(spin = { _start: () => { }, _stop: () => { }
                 }
         }
         catch (err) {
-                const loginMbasic = require(process.env.NODE_ENV === 'development' ? "./loginMbasic.dev.js" : "./loginMbasic.js");
-                if (facebookAccount["2FASecret"]) {
-                        switch (['.png', '.jpg', '.jpeg'].some(i => facebookAccount["2FASecret"].endsWith(i))) {
-                                case true:
-                                        code2FATemp = (await qr.readQrCode(`${process.cwd()}/${facebookAccount["2FASecret"]}`)).replace(/.*secret=(.*)&digits.*/g, '$1');
-                                        break;
-                                case false:
-                                        code2FATemp = facebookAccount["2FASecret"];
-                                        break;
-                        }
-                }
-
-                appState = await loginMbasic({
-                        email,
-                        pass: password,
-                        twoFactorSecretOrCode: code2FATemp,
-                        userAgent,
-                        proxy
-                });
-
-                appState = appState.map(item => {
-                        item.key = item.name;
-                        delete item.name;
-                        return item;
-                });
-                appState = filterKeysAppState(appState);
+                throw err;
         }
 
         global.GoatBot.config.facebookAccount['2FASecret'] = code2FATemp || "";
