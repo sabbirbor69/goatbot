@@ -741,17 +741,34 @@ function formatAttachment(attachments, attachmentIds, attachmentMap, shareMap) {
 
 function formatDeltaMessage(m) {
     var md = m.messageMetadata;
-    var mdata =
-        m.data === undefined ? [] :
-        m.data.prng === undefined ? [] :
-        JSON.parse(m.data.prng);
+
+    // Try multiple known locations where Facebook may send mention (prng) data.
+    // Facebook has changed the field path across versions, so we check all of them.
+    var prngRaw = null;
+    try {
+        if (m.data && m.data.prng != null) prngRaw = m.data.prng;
+        else if (m.metadata && m.metadata.prng != null) prngRaw = m.metadata.prng;
+        else if (md && md.prng != null) prngRaw = md.prng;
+        else if (m.data && m.data.metadata != null) prngRaw = m.data.metadata;
+    } catch (_) {}
+
+    var mdata = [];
+    try {
+        if (prngRaw) {
+            mdata = typeof prngRaw === "string" ? JSON.parse(prngRaw) : prngRaw;
+            if (!Array.isArray(mdata)) mdata = [];
+        }
+    } catch (_) { mdata = []; }
+
     var m_id = mdata.map((/** @type {{ i: any; }} */u) => u.i);
     var m_offset = mdata.map((/** @type {{ o: any; }} */u) => u.o);
     var m_length = mdata.map((/** @type {{ l: any; }} */u) => u.l);
     var mentions = {};
     var body = m.body || "";
     var args = body == "" ? [] : body.trim().split(/\s+/);
-    for (var i = 0; i < m_id.length; i++) mentions[m_id[i]] = m.body.substring(m_offset[i], m_offset[i] + m_length[i]);
+    for (var i = 0; i < m_id.length; i++) {
+        if (m_id[i] != null) mentions[String(m_id[i])] = body.substring(m_offset[i], m_offset[i] + m_length[i]);
+    }
 
     return {
         type: "message",

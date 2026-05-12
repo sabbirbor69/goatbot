@@ -482,6 +482,11 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, {
       return;
     }
 
+    // Debug: log raw delta data field when body contains @ so we can trace mention structure
+    if (delta.body && delta.body.includes('@') && process.env.DEBUG_MENTION === '1') {
+      log.info('MentionDebug', JSON.stringify({ data: delta.data, metadata: delta.metadata, tags: delta.tags }));
+    }
+
     const resolveAttachmentUrl = (i) => {
       if (!delta.attachments || i === delta.attachments.length || utils.getType(delta.attachments) !== 'Array') {
         let fmtMsg;
@@ -564,22 +569,23 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, {
           };
           globalCallback(null, messageUnsend);
         } else if (delta.deltaMessageReply) {
-          const mdata =
-            delta.deltaMessageReply.message === undefined ?
-            [] :
-            delta.deltaMessageReply.message.data === undefined ?
-            [] :
-            delta.deltaMessageReply.message.data.prng === undefined ?
-            [] :
-            JSON.parse(delta.deltaMessageReply.message.data.prng);
-
-          const m_id = mdata.map((u) => u.i);
-          const m_offset = mdata.map((u) => u.o);
-          const m_length = mdata.map((u) => u.l);
+          const _msg = delta.deltaMessageReply.message || {};
+          const _msgBody = _msg.body || '';
+          let _prngRaw = null;
+          try {
+            if (_msg.data && _msg.data.prng != null) _prngRaw = _msg.data.prng;
+            else if (_msg.metadata && _msg.metadata.prng != null) _prngRaw = _msg.metadata.prng;
+            else if (_msg.messageMetadata && _msg.messageMetadata.prng != null) _prngRaw = _msg.messageMetadata.prng;
+          } catch (_) {}
+          let _mdata = [];
+          try { if (_prngRaw) { _mdata = typeof _prngRaw === 'string' ? JSON.parse(_prngRaw) : _prngRaw; if (!Array.isArray(_mdata)) _mdata = []; } } catch (_) { _mdata = []; }
+          const m_id = _mdata.map((u) => u.i);
+          const m_offset = _mdata.map((u) => u.o);
+          const m_length = _mdata.map((u) => u.l);
 
           const mentions = {};
           for (let i = 0; i < m_id.length; i++) {
-            mentions[m_id[i]] = (delta.deltaMessageReply.message.body || '').substring(m_offset[i], m_offset[i] + m_length[i]);
+            if (m_id[i] != null) mentions[String(m_id[i])] = _msgBody.substring(m_offset[i], m_offset[i] + m_length[i]);
           }
 
           const callbackToReturn = {
@@ -622,22 +628,23 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, {
           } catch (_) {}
 
           if (delta.deltaMessageReply.repliedToMessage) {
-            const mdata =
-              delta.deltaMessageReply.repliedToMessage === undefined ?
-              [] :
-              delta.deltaMessageReply.repliedToMessage.data === undefined ?
-              [] :
-              delta.deltaMessageReply.repliedToMessage.data.prng === undefined ?
-              [] :
-              JSON.parse(delta.deltaMessageReply.repliedToMessage.data.prng);
-
-            const m_id = mdata.map((u) => u.i);
-            const m_offset = mdata.map((u) => u.o);
-            const m_length = mdata.map((u) => u.l);
+            const _rMsg = delta.deltaMessageReply.repliedToMessage || {};
+            const _rBody = _rMsg.body || '';
+            let _rPrngRaw = null;
+            try {
+              if (_rMsg.data && _rMsg.data.prng != null) _rPrngRaw = _rMsg.data.prng;
+              else if (_rMsg.metadata && _rMsg.metadata.prng != null) _rPrngRaw = _rMsg.metadata.prng;
+              else if (_rMsg.messageMetadata && _rMsg.messageMetadata.prng != null) _rPrngRaw = _rMsg.messageMetadata.prng;
+            } catch (_) {}
+            let _rMdata = [];
+            try { if (_rPrngRaw) { _rMdata = typeof _rPrngRaw === 'string' ? JSON.parse(_rPrngRaw) : _rPrngRaw; if (!Array.isArray(_rMdata)) _rMdata = []; } } catch (_) { _rMdata = []; }
+            const m_id = _rMdata.map((u) => u.i);
+            const m_offset = _rMdata.map((u) => u.o);
+            const m_length = _rMdata.map((u) => u.l);
 
             const rmentions = {};
             for (let i = 0; i < m_id.length; i++) {
-              rmentions[m_id[i]] = (delta.deltaMessageReply.repliedToMessage.body || '').substring(m_offset[i], m_offset[i] + m_length[i]);
+              if (m_id[i] != null) rmentions[String(m_id[i])] = _rBody.substring(m_offset[i], m_offset[i] + m_length[i]);
             }
 
             callbackToReturn.messageReply = {
