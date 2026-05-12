@@ -482,9 +482,15 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, {
       return;
     }
 
-    // Debug: log raw delta data field when body contains @ so we can trace mention structure
-    if (delta.body && delta.body.includes('@') && process.env.DEBUG_MENTION === '1') {
-      log.info('MentionDebug', JSON.stringify({ data: delta.data, metadata: delta.metadata, tags: delta.tags }));
+    // Always log raw delta fields when body contains @ so we can trace what Facebook is sending
+    if (delta.body && delta.body.includes('@')) {
+      log.info('MentionDebug', JSON.stringify({
+        body: delta.body,
+        data: delta.data,
+        metadata: delta.metadata,
+        tags: delta.tags,
+        messageMetadata_prng: delta.messageMetadata && delta.messageMetadata.prng
+      }));
     }
 
     const resolveAttachmentUrl = (i) => {
