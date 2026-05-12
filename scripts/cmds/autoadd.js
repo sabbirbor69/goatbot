@@ -1,10 +1,8 @@
-const { loadingBar } = require("../../utils/animation.js");
-
 const { getName } = require("../../utils/getName.js");
 
 module.exports.config = {
   name: "autoadd",
-  version: "1.1.0",
+  version: "2.0.0",
   role: 1,
   credits: "Ariful Islam Sabbir",
   usePrefix: true,
@@ -12,51 +10,54 @@ module.exports.config = {
   category: "group",
   countDown: 3,
   shortDescription: "কেউ leave করলে bot auto add করবে",
-  longDescription: "Group admin এই command দিয়ে autoadd on/off করতে পারবে",
+  longDescription: "Group admin এই command দিয়ে autoadd চালু/বন্ধ করতে পারবে",
   guide: {
     en: "{pn} on/off",
     bn: "{pn} on/off"
   }
 };
 
-if (!global.autoAddEnabled) global.autoAddEnabled = new Map();
+if (!global.autoAddEnabled)
+  global.autoAddEnabled = new Map();
 
-module.exports.onStart = async function ({ api, event, args, message, threadsData }) {
-  await loadingBar(api, event.threadID, event.messageID);
-
-
+module.exports.onStart = async function ({
+  event,
+  args,
+  message,
+  threadsData
+}) {
   const { threadID } = event;
   const sub = (args[0] || "").toLowerCase();
 
-  if (!sub || !["on", "off"].includes(sub)) {
-    const status = global.autoAddEnabled.get(threadID) ? "✅ চালু" : "❌ বন্ধ";
+  if (!["on", "off"].includes(sub)) {
     return message.reply(
-      `🔄 AutoAdd Status: ${status}\n\n` +
-      `📌 ব্যবহার:\n` +
-      `• /autoadd on → চালু করো\n` +
-      `• /autoadd off → বন্ধ করো\n\n` +
-      `ℹ️ চালু থাকলে কেউ leave করলে bot তাকে auto add করবে।`
+      "📌 ব্যবহার:\n" +
+      "• /autoadd on\n" +
+      "• /autoadd off"
     );
   }
 
-  const isEnable = sub === "on";
-  global.autoAddEnabled.set(threadID, isEnable);
+  const enable = sub === "on";
 
-  try { await threadsData.set(threadID, "autoAdd", isEnable); } catch (e) {}
+  global.autoAddEnabled.set(threadID, enable);
+
+  try {
+    await threadsData.set(threadID, enable, "autoAdd");
+  } catch (e) {}
 
   return message.reply(
-    isEnable
-      ? `✅ AutoAdd চালু হয়েছে!\n🔄 এখন কেউ leave করলে bot তাকে আবার add করবে।`
-      : `❌ AutoAdd বন্ধ হয়েছে!`
+    enable
+      ? "✅ AutoAdd চালু হয়েছে"
+      : "❌ AutoAdd বন্ধ হয়েছে"
   );
 };
 
 module.exports.onLoad = async function () {
   try {
-    const allThreads = (global.db && global.db.allThreadData) || [];
+    const allThreads = global.db?.allThreadData || [];
+
     for (const thread of allThreads) {
-      const status = thread?.data?.autoAdd;
-      if (status === true) {
+      if (thread?.data?.autoAdd === true) {
         global.autoAddEnabled.set(thread.threadID, true);
       }
     }
@@ -65,37 +66,48 @@ module.exports.onLoad = async function () {
 
 module.exports.onEvent = async function ({ api, event }) {
   try {
-    const { threadID, logMessageType, logMessageData, author } = event;
-    if (logMessageType !== "log:unsubscribe") return;
+    const {
+      threadID,
+      logMessageType,
+      logMessageData
+    } = event;
 
-    const isEnabled = global.autoAddEnabled.get(threadID);
-    if (!isEnabled) return;
+    if (logMessageType !== "log:unsubscribe")
+      return;
+
+    if (!global.autoAddEnabled.get(threadID))
+      return;
 
     const leftUserID = String(
       logMessageData?.leftParticipantFbId ||
       logMessageData?.removedParticipantFbId ||
-      event.userID ||
-      author ||
       ""
     );
 
-    if (!leftUserID) return;
+    if (!leftUserID)
+      return;
 
     const botID = String(api.getCurrentUserID());
-    if (leftUserID === botID) return;
+
+    if (leftUserID === botID)
+      return;
 
     setTimeout(async () => {
-      const userName = await getName(api, leftUserID, "User");
       try {
-        await api.addUserToGroup([leftUserID], threadID);
+        const userName = await getName(api, leftUserID, "User");
+
+        await api.addUserToGroup(leftUserID, threadID);
+
         await api.sendMessage(
-          `🔄 ${userName} leave করেছিল, bot আবার add করেছে! 😈`,
+          `🔄 ${userName} কে আবার add করা হয়েছে`,
           threadID
         );
+
       } catch (err) {
-        console.error("autoadd failed:", err);
+        console.error("autoadd error:", err);
+
         await api.sendMessage(
-          `⚠️ ${userName} কে auto-add করা যায়নি।\n${err.message || err.error || ""}`,
+          `⚠️ User কে auto add করা যায়নি`,
           threadID
         ).catch(() => {});
       }
