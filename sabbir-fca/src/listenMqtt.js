@@ -482,17 +482,6 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, {
       return;
     }
 
-    // Always log raw delta fields when body contains @ so we can trace what Facebook is sending
-    if (delta.body && delta.body.includes('@')) {
-      log.info('MentionDebug', JSON.stringify({
-        body: delta.body,
-        data: delta.data,
-        metadata: delta.metadata,
-        tags: delta.tags,
-        messageMetadata_prng: delta.messageMetadata && delta.messageMetadata.prng
-      }));
-    }
-
     const resolveAttachmentUrl = (i) => {
       if (!delta.attachments || i === delta.attachments.length || utils.getType(delta.attachments) !== 'Array') {
         let fmtMsg;
@@ -548,6 +537,60 @@ function parseDelta(defaultFuncs, api, ctx, globalCallback, {
         }
       }
     };
+
+    // If body has '@' but no prng data, fetch mention ranges from GraphQL
+    const hasMentionText = delta.body && delta.body.includes('@');
+    const hasPrng = delta.data && delta.data.prng != null;
+
+    if (hasMentionText && !hasPrng && delta.messageMetadata) {
+      const msgID = delta.messageMetadata.messageId;
+      const threadKey = delta.messageMetadata.threadKey;
+      const threadID = threadKey && (threadKey.threadFbId || threadKey.otherUserFbId);
+
+      if (msgID && threadID) {
+        defaultFuncs.post('https://www.facebook.com/api/graphqlbatch/', ctx.jar, {
+          av: ctx.globalOptions.pageID,
+          queries: JSON.stringify({
+            o0: {
+              doc_id: '2848441488556444',
+              query_params: {
+                thread_and_message_id: {
+                  thread_id: String(threadID),
+                  message_id: msgID
+                }
+              }
+            }
+          })
+        })
+        .then(utils.parseAndCheckLogin(ctx, defaultFuncs))
+        .then((resData) => {
+          try {
+            if (
+              resData && resData[0] &&
+              resData[0].o0 && resData[0].o0.data &&
+              resData[0].o0.data.message &&
+              resData[0].o0.data.message.message &&
+              Array.isArray(resData[0].o0.data.message.message.ranges) &&
+              resData[0].o0.data.message.message.ranges.length > 0
+            ) {
+              const prng = resData[0].o0.data.message.message.ranges.map(r => ({
+                i: r.entity && r.entity.id,
+                o: r.offset,
+                l: r.length
+              })).filter(r => r.i);
+              if (prng.length > 0) {
+                if (!delta.data) delta.data = {};
+                delta.data.prng = JSON.stringify(prng);
+                log.info('MentionFetch', `Injected ${prng.length} mention(s) for msgID ${msgID}`);
+              }
+            }
+          } catch (_) {}
+        })
+        .catch(() => {})
+        .finally(() => resolveAttachmentUrl(0));
+        return;
+      }
+    }
 
     resolveAttachmentUrl(0);
   } else if (delta.class === 'ClientPayload') {
