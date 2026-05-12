@@ -1,4 +1,4 @@
-const { loadingBar } = require("../../utils/animation.js");
+//const { loadingBar } = require("../../utils/animation.js");
 
 module.exports.config = {
   name: "acept",
