@@ -1,4 +1,4 @@
-const { loadingBar } = require("../../utils/animation.js");
+//const { loadingBar } = require("../../utils/animation.js");
 
 const axios = require("axios");
 const { getName } = require("../../utils/getName.js");
