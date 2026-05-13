@@ -19,7 +19,7 @@ module.exports.config = {
 };
 
 module.exports.onStart = async function ({ api, event, args, message }) {
-  await loadingBar(api, event.threadID, event.messageID);
+ //await loadingBar(api, event.threadID, event.messageID);
 
 
   const { threadID } = event;
